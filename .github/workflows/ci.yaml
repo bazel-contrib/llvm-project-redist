@@ -151,6 +151,7 @@ jobs:
 
       - name: Attest build provenance
         id: attest
+        if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
@@ -158,6 +159,7 @@ jobs:
             redist-repo/llvm-project-${{ matrix.version }}.bzl.tar.zst
 
       - name: Create attestation files
+        if: github.event_name != 'pull_request'
         working-directory: redist-repo
         run: |
           set -euo pipefail
