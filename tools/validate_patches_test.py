@@ -29,10 +29,6 @@ class ValidateVersionTest(unittest.TestCase):
             content = self.version_dir.name
         (self.version_dir / "version.txt").write_text(content + "\n")
 
-    def _add_sig(self) -> None:
-        (self.version_dir / f"llvm-project-{self.version_dir.name}.src.tar.xz.sig").write_bytes(b"stub")
-        (self.version_dir / "signing-key.asc").write_text("stub key")
-
     def _add_patch(self, name: str) -> None:
         self.patches_dir.mkdir(exist_ok=True)
         (self.patches_dir / name).touch()
@@ -47,14 +43,12 @@ class ValidateVersionTest(unittest.TestCase):
     def test_single_patch_starting_at_001(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001_fix_build.patch")
         self.assertEqual(validate_version(self.version_dir), [])
 
     def test_sequential_patches(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001_first.patch")
         self._add_patch("002_second.patch")
         self._add_patch("003_third.patch")
@@ -63,7 +57,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_gap_in_sequence(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001_first.patch")
         self._add_patch("003_third.patch")
         errors = validate_version(self.version_dir)
@@ -73,7 +66,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_not_starting_at_001(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("002_second.patch")
         errors = validate_version(self.version_dir)
         self.assertEqual(len(errors), 1)
@@ -82,7 +74,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_bad_naming_no_prefix(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("fix.patch")
         errors = validate_version(self.version_dir)
         self.assertEqual(len(errors), 1)
@@ -91,7 +82,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_bad_naming_two_digit_prefix(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("01_fix.patch")
         errors = validate_version(self.version_dir)
         self.assertEqual(len(errors), 1)
@@ -100,7 +90,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_bad_naming_no_underscore(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001fix.patch")
         errors = validate_version(self.version_dir)
         self.assertEqual(len(errors), 1)
@@ -109,7 +98,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_non_patch_files_in_patches_dir_ignored(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self.patches_dir.mkdir(exist_ok=True)
         (self.patches_dir / "README.md").touch()
         self._add_patch("001_fix.patch")
@@ -118,7 +106,6 @@ class ValidateVersionTest(unittest.TestCase):
     def test_duplicate_numbers(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001_alpha.patch")
         self._add_patch("001_bravo.patch")
         errors = validate_version(self.version_dir)
@@ -127,48 +114,35 @@ class ValidateVersionTest(unittest.TestCase):
 
     def test_missing_presubmit_with_patches(self) -> None:
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001_fix.patch")
         errors = validate_version(self.version_dir)
         self.assertTrue(any("missing required presubmit.yml" in e for e in errors))
 
-    def test_missing_sig_and_key(self) -> None:
-        self._add_presubmit()
-        self._add_version_txt()
-        errors = validate_version(self.version_dir)
-        self.assertTrue(any("missing required .sig file" in e for e in errors))
-        self.assertTrue(any("missing required signing-key.asc" in e for e in errors))
-
     def test_presubmit_and_version_txt_is_valid(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self.assertEqual(validate_version(self.version_dir), [])
 
     def test_no_patches_dir_is_valid(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self.assertEqual(validate_version(self.version_dir), [])
 
     def test_empty_patches_dir_is_valid(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self.patches_dir.mkdir()
         self.assertEqual(validate_version(self.version_dir), [])
 
     def test_dash_separated_name_is_valid(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("001-fix-build.patch")
         self.assertEqual(validate_version(self.version_dir), [])
 
     def test_error_includes_patches_subpath(self) -> None:
         self._add_presubmit()
         self._add_version_txt()
-        self._add_sig()
         self._add_patch("fix.patch")
         errors = validate_version(self.version_dir)
         self.assertIn("patches/fix.patch", errors[0])
@@ -195,8 +169,6 @@ class ValidateTest(unittest.TestCase):
         v.mkdir()
         (v / "presubmit.yml").write_text("tasks: {}\n")
         (v / "version.txt").write_text(f"{name}\n")
-        (v / f"llvm-project-{name}.src.tar.xz.sig").write_bytes(b"stub")
-        (v / "signing-key.asc").write_text("stub key")
         return v
 
     def test_valid_multiple_versions(self) -> None:
@@ -231,8 +203,6 @@ class ValidateTest(unittest.TestCase):
         v1 = self.versions_dir / "20.0.0"
         v1.mkdir()
         (v1 / "version.txt").write_text("20.0.0\n")
-        (v1 / "llvm-project-20.0.0.src.tar.xz.sig").write_bytes(b"stub")
-        (v1 / "signing-key.asc").write_text("stub key")
         (v1 / "patches").mkdir()
         (v1 / "patches" / "001_fix.patch").touch()
 

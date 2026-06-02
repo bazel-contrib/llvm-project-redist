@@ -14,10 +14,7 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import urlretrieve
 
 PATCH_RE = re.compile(r"^(\d{3})[_-].+\.patch$")
 
@@ -28,11 +25,6 @@ def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("versions_dir", type=Path, help="Path to versions/ directory")
-    parser.add_argument(
-        "--verify-upstream",
-        action="store_true",
-        help="Verify .sig and signing key match upstream LLVM release and keyserver",
-    )
     parser.add_argument(
         "--base-ref",
         default="origin/main",
@@ -122,111 +114,11 @@ def _check_version_increment(version_dir: Path, *, base_ref: str = "origin/main"
     return []
 
 
-_IMMUTABLE_PATTERNS = ("*.sig", "signing-key.asc")
-
-_UPSTREAM_SIG_URL = "https://github.com/llvm/llvm-project/releases/download/llvmorg-{version}/{tarball}.sig"
-
-
-def _check_immutable_files(version_dir: Path) -> list[str]:
-    """Ensure .sig and signing-key.asc files have not been modified after initial commit."""
-    errors: list[str] = []
-    import subprocess
-
-    for pattern in _IMMUTABLE_PATTERNS:
-        for f in version_dir.glob(pattern):
-            rel = f.relative_to(version_dir.parent.parent)
-            result = subprocess.run(
-                [
-                    "git",
-                    "log",
-                    "--oneline",
-                    "--follow",
-                    "--diff-filter=M",
-                    "--",
-                    str(rel),
-                ],
-                capture_output=True,
-                text=True,
-                cwd=version_dir.parent.parent,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                errors.append(f"{version_dir.name}/{f.name}: immutable file has been modified after initial commit")
-    return errors
-
-
-def _is_newly_added(filepath: Path) -> bool:
-    """Return True if *filepath* is untracked or only exists in uncommitted/staged changes."""
-    import subprocess
-
-    result = subprocess.run(
-        ["git", "log", "--oneline", "-1", "--", str(filepath.relative_to(filepath.parent.parent.parent))],
-        capture_output=True,
-        text=True,
-        cwd=filepath.parent.parent.parent,
-    )
-    return result.returncode != 0 or not result.stdout.strip()
-
-
-def _check_upstream_sig(version_dir: Path) -> list[str]:
-    """Verify .sig always matches upstream LLVM release."""
-    errors: list[str] = []
-    dir_name = version_dir.name
-
-    sig_files = list(version_dir.glob("*.sig"))
-    if not sig_files:
-        return errors
-
-    sig_file = sig_files[0]
-    tarball_name = sig_file.stem
-
-    url = _UPSTREAM_SIG_URL.format(version=dir_name, tarball=tarball_name)
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".sig") as tmp:
-            urlretrieve(url, tmp.name)
-            local_sig = sig_file.read_bytes()
-            upstream_sig = Path(tmp.name).read_bytes()
-            if local_sig != upstream_sig:
-                errors.append(f"{dir_name}/{sig_file.name}: does not match upstream at {url}")
-            Path(tmp.name).unlink()
-    except (URLError, OSError) as e:
-        errors.append(f"{dir_name}/{sig_file.name}: could not fetch upstream sig: {e}")
-
-    return errors
-
-
-def _check_upstream_key(version_dir: Path) -> list[str]:
-    """Verify signing-key.asc matches upstream release keys, but only when newly added."""
-    errors: list[str] = []
-    dir_name = version_dir.name
-
-    key_file = version_dir / "signing-key.asc"
-    if not key_file.is_file() or not _is_newly_added(key_file):
-        return errors
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".asc") as tmp_keys:
-            urlretrieve("https://releases.llvm.org/release-keys.asc", tmp_keys.name)
-            upstream_keys = Path(tmp_keys.name).read_text()
-            local_key = key_file.read_text().strip()
-            if local_key not in upstream_keys:
-                errors.append(
-                    f"{dir_name}/signing-key.asc: key not found in https://releases.llvm.org/release-keys.asc"
-                )
-            Path(tmp_keys.name).unlink()
-    except (URLError, OSError) as e:
-        errors.append(f"{dir_name}/signing-key.asc: could not fetch upstream release keys: {e}")
-
-    return errors
-
-
-def validate_version(version_dir: Path, *, verify_upstream: bool = False, base_ref: str = "origin/main") -> list[str]:
+def validate_version(version_dir: Path, *, base_ref: str = "origin/main") -> list[str]:
     """Validate a single version directory.
 
-    Checks version.txt, presubmit.yml presence, sig file, signing key,
-    and patches/ subdirectory for naming/sequencing.
-
-    When *verify_upstream* is True, also checks that the .sig file matches
-    the upstream LLVM release and the signing key matches the keyserver.
+    Checks version.txt, presubmit.yml presence, and patches/ subdirectory
+    for naming/sequencing.
 
     Returns a list of error strings (empty if valid).
     """
@@ -236,17 +128,6 @@ def validate_version(version_dir: Path, *, verify_upstream: bool = False, base_r
     if _is_non_empty(version_dir) and not (version_dir / "presubmit.yml").exists():
         errors.append(f"{dir_name}: missing required presubmit.yml")
 
-    sig_files = list(version_dir.glob("*.sig"))
-    if _is_non_empty(version_dir) and not sig_files:
-        errors.append(f"{dir_name}: missing required .sig file for upstream tarball")
-
-    if _is_non_empty(version_dir) and not (version_dir / "signing-key.asc").exists():
-        errors.append(f"{dir_name}: missing required signing-key.asc")
-
-    errors.extend(_check_immutable_files(version_dir))
-    if verify_upstream:
-        errors.extend(_check_upstream_sig(version_dir))
-        errors.extend(_check_upstream_key(version_dir))
     errors.extend(validate_version_txt(version_dir, base_ref=base_ref))
 
     patches_dir = version_dir / "patches"
@@ -283,7 +164,7 @@ def validate_version(version_dir: Path, *, verify_upstream: bool = False, base_r
     return errors
 
 
-def validate(versions_dir: Path, *, verify_upstream: bool = False, base_ref: str = "origin/main") -> list[str]:
+def validate(versions_dir: Path, *, base_ref: str = "origin/main") -> list[str]:
     """Validate all version directories under a versions/ root.
 
     Returns a list of error strings (empty if everything is valid).
@@ -296,7 +177,7 @@ def validate(versions_dir: Path, *, verify_upstream: bool = False, base_ref: str
     for entry in sorted(versions_dir.iterdir()):
         if not entry.is_dir():
             continue
-        errors.extend(validate_version(entry, verify_upstream=verify_upstream, base_ref=base_ref))
+        errors.extend(validate_version(entry, base_ref=base_ref))
 
     return errors
 
@@ -304,7 +185,7 @@ def validate(versions_dir: Path, *, verify_upstream: bool = False, base_ref: str
 def main() -> None:
     args = parse_args()
 
-    errors = validate(args.versions_dir, verify_upstream=args.verify_upstream, base_ref=args.base_ref)
+    errors = validate(args.versions_dir, base_ref=args.base_ref)
     if errors:
         for e in errors:
             print(f"ERROR: {e}", file=sys.stderr)

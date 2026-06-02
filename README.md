@@ -28,8 +28,6 @@ versions/
   17.0.3/
     version.txt                              # release version (e.g. 17.0.3.bcr.5)
     presubmit.yml                            # BCR presubmit test config
-    signing-key.asc                          # upstream GPG signing key
-    llvm-project-17.0.3.src.tar.xz.sig       # upstream GPG signature
     patches/
       001_fix_build.patch                    # git-formatted patches, applied in order
 .bcr/
@@ -37,6 +35,8 @@ versions/
   source.template.json                       # BCR source.json template
   metadata.template.json                     # BCR metadata.json template
 ```
+
+The upstream tarball, its GPG signature, and the LLVM release signing key are downloaded from official sources at build time and never committed.
 
 ## Local development
 

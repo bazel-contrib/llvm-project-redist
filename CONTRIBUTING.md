@@ -6,10 +6,8 @@ New upstream releases are detected automatically by the `check-llvm-release` wor
 
 - `versions/{version}/version.txt`
 - `versions/{version}/presubmit.yml` (from template)
-- `versions/{version}/llvm-project-{version}.src.tar.xz.sig` (upstream GPG signature)
-- `versions/{version}/signing-key.asc` (upstream release signing key)
 
-Review the presubmit configuration, add any necessary patches, then merge to trigger the release pipeline.
+Review the presubmit configuration, add any necessary patches, then merge to trigger the release pipeline. The upstream tarball, its GPG signature, and the LLVM release signing key are fetched from official sources at build time — none of them are committed.
 
 To manually seed a version, run the **Check LLVM Release** workflow from the Actions tab with the `llvm_version` input, or:
 
@@ -17,7 +15,6 @@ To manually seed a version, run the **Check LLVM Release** workflow from the Act
 mkdir -p versions/{version}
 echo "{version}" > versions/{version}/version.txt
 cp .bcr/presubmit.yml versions/{version}/presubmit.yml
-# Download .sig and signing-key.asc from upstream
 ```
 
 ## Adding or updating patches
@@ -35,10 +32,6 @@ cp .bcr/presubmit.yml versions/{version}/presubmit.yml
 - Files must match `NNN_description.patch` or `NNN-description.patch`.
 - Numbers must start at `001` and be strictly sequential with no gaps.
 - All patches are applied with `patch -p1` from the source root in numeric order.
-
-### Immutable files
-
-The `.sig` and `signing-key.asc` files are verified against upstream on every CI run and must never be modified after initial commit. This is enforced by validation.
 
 ## Presubmit testing
 

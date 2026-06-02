@@ -124,38 +124,6 @@ jobs:
             echo "Copied presubmit.yml from ${CLOSEST}"
           fi
 
-      - name: Download upstream signature and signing key
-        if: steps.existing.outputs.skip != 'true'
-        run: |
-          set -euo pipefail
-          LLVM_VERSION="${{ matrix.llvm_version }}"
-          VERSION_DIR="versions/${LLVM_VERSION}"
-          TAG="llvmorg-${LLVM_VERSION}"
-          TARBALL="llvm-project-${LLVM_VERSION}.src.tar.xz"
-          SIG_FILE="${VERSION_DIR}/${TARBALL}.sig"
-          KEY_FILE="${VERSION_DIR}/signing-key.asc"
-
-          if [ -f "$SIG_FILE" ] && [ -f "$KEY_FILE" ]; then
-            echo "Signature and key already exist for ${LLVM_VERSION}"
-            exit 0
-          fi
-
-          SIG_URL="https://github.com/llvm/llvm-project/releases/download/${TAG}/${TARBALL}.sig"
-          echo "Downloading signature from ${SIG_URL}..."
-          curl -fSL -o "${SIG_FILE}" "${SIG_URL}"
-
-          KEY_ID=$(gpg --list-packets "${SIG_FILE}" 2>/dev/null | grep -oP 'keyid \K[A-F0-9]+' | head -1)
-          if [ -z "$KEY_ID" ]; then
-            echo "ERROR: could not extract key ID from signature"
-            exit 1
-          fi
-
-          echo "Fetching signing key ${KEY_ID} from keyserver..."
-          gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys "${KEY_ID}"
-          gpg --armor --export "${KEY_ID}" > "${KEY_FILE}"
-
-          echo "Saved signature and signing key for ${LLVM_VERSION}"
-
       - name: Create PR
         if: steps.existing.outputs.skip != 'true'
         env:

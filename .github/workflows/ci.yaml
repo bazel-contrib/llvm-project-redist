@@ -61,7 +61,7 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             BASE_REF="HEAD~1"
           fi
-          bazel run //tools:validate_patches -- versions --verify-upstream --base-ref "${BASE_REF}"
+          bazel run //tools:validate_patches -- versions --base-ref "${BASE_REF}"
 
       - name: Bazel tests
         run: bazel test //tools/...
@@ -183,6 +183,24 @@ jobs:
           name: release-${{ matrix.llvm_version }}
           path: release-artifacts/
           retention-days: 7
+
+  # Stable-name gate so branch protection can require the matrix build without
+  # naming each dynamic matrix job. Passes when the matrix succeeds or is empty
+  # (no version changes), fails on any matrix failure or cancellation.
+  build-complete:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build matrix result
+        run: |
+          result="${{ needs.build.result }}"
+          if [ "$result" = "success" ] || [ "$result" = "skipped" ]; then
+            echo "Build matrix result: $result"
+            exit 0
+          fi
+          echo "Build matrix result: $result"
+          exit 1
 
   dispatch:
     needs: [build]

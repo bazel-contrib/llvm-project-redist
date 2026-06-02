@@ -48,6 +48,10 @@ from tools.transform_module_bazel import transform as _transform_module_source
 UPSTREAM_URL_TEMPLATE = (
     "https://github.com/llvm/llvm-project/releases/download/llvmorg-{version}/llvm-project-{version}.src.tar.xz"
 )
+UPSTREAM_SIG_URL_TEMPLATE = (
+    "https://github.com/llvm/llvm-project/releases/download/llvmorg-{version}/llvm-project-{version}.src.tar.xz.sig"
+)
+UPSTREAM_RELEASE_KEYS_URL = "https://releases.llvm.org/release-keys.asc"
 
 OVERLAY_EXTRA_FILES = ("vulkan_sdk.bzl", "BUILD.bazel", ".bazelrc", ".bazelversion")
 
@@ -173,6 +177,35 @@ def download_tarball(llvm_version: str, dest_dir: Path) -> tuple[Path, str]:
     sha256 = compute_sha256(tarball)
     logging.info("SHA-256: %s", sha256)
     return tarball, sha256
+
+
+def download_signature(llvm_version: str, dest_dir: Path) -> Path:
+    """Download the upstream LLVM GPG signature for the source tarball."""
+    url = UPSTREAM_SIG_URL_TEMPLATE.format(version=llvm_version)
+    sig = dest_dir / f"llvm-project-{llvm_version}.src.tar.xz.sig"
+
+    if sig.is_file():
+        logging.info("Using cached %s", sig.name)
+        return sig
+
+    logging.info("Downloading %s", url)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    urlretrieve(url, sig)
+    return sig
+
+
+def download_signing_key(dest_dir: Path) -> Path:
+    """Download the upstream LLVM release signing keyring."""
+    key = dest_dir / "signing-key.asc"
+
+    if key.is_file():
+        logging.info("Using cached %s", key.name)
+        return key
+
+    logging.info("Downloading %s", UPSTREAM_RELEASE_KEYS_URL)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    urlretrieve(UPSTREAM_RELEASE_KEYS_URL, key)
+    return key
 
 
 def extract_tarball(tarball: Path, dest_dir: Path) -> Path:
@@ -403,9 +436,8 @@ def prepare_source(
     tarball, upstream_sha256 = download_tarball(llvm_version, output_dir)
 
     if verify_sig:
-        version_dir = versions_dir / llvm_version
-        sig_file = version_dir / f"{tarball.name}.sig"
-        key_file = version_dir / "signing-key.asc"
+        sig_file = download_signature(llvm_version, output_dir)
+        key_file = download_signing_key(output_dir)
         verify_signature(tarball, sig_file, key_file)
 
     src_dir = extract_tarball(tarball, output_dir)
