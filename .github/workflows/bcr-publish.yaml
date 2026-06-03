@@ -26,7 +26,9 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
+  attestations: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -136,6 +138,33 @@ jobs:
           echo "source.json:"
           cat source.json
 
+      - name: Attest MODULE.bazel and source.json
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            MODULE.bazel
+            source.json
+
+      - name: Upload MODULE.bazel and source.json attestations to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          cp "${{ steps.attest.outputs.bundle-path }}" MODULE.bazel.intoto.jsonl
+          cp "${{ steps.attest.outputs.bundle-path }}" source.json.intoto.jsonl
+
+          gh release upload "${TAG}" \
+            --repo "${{ github.repository }}" \
+            --clobber \
+            MODULE.bazel.intoto.jsonl \
+            source.json.intoto.jsonl
+
+          INTOTO_INTEGRITY="sha256-$(sha256sum "${{ steps.attest.outputs.bundle-path }}" | cut -d' ' -f1 | xxd -r -p | base64 -w0)"
+          echo "intoto_integrity=${INTOTO_INTEGRITY}" >> "$GITHUB_OUTPUT"
+        id: upload_attestations
+
       - name: Build attestations.json
         run: |
           set -euo pipefail
@@ -145,6 +174,7 @@ jobs:
           REPO="${{ github.event.repository.name }}"
           ARCHIVE="llvm-project-${VERSION}.bzl.tar.zst"
           RELEASE_URL="https://github.com/${OWNER}/${REPO}/releases/download/${TAG}"
+          META_INTEGRITY="${{ steps.upload_attestations.outputs.intoto_integrity }}"
 
           cat > attestations.json <<EOF
           {
@@ -153,6 +183,14 @@ jobs:
               "${ARCHIVE}": {
                 "url": "${RELEASE_URL}/${ARCHIVE}.intoto.jsonl",
                 "integrity": "${{ steps.integrity.outputs.archive_intoto_integrity }}"
+              },
+              "MODULE.bazel": {
+                "url": "${RELEASE_URL}/MODULE.bazel.intoto.jsonl",
+                "integrity": "${META_INTEGRITY}"
+              },
+              "source.json": {
+                "url": "${RELEASE_URL}/source.json.intoto.jsonl",
+                "integrity": "${META_INTEGRITY}"
               }
             }
           }
