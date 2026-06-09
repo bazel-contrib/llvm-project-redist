@@ -97,6 +97,18 @@ py_binary(
     srcs = ["release_notes.py"],
 )
 
+py_binary(
+    name = "cherry_pick",
+    srcs = ["cherry_pick.py"],
+    deps = [":build"],
+)
+
+py_test(
+    name = "cherry_pick_test",
+    srcs = ["cherry_pick_test.py"],
+    deps = [":cherry_pick"],
+)
+
 compile_pip_requirements(
     name = "requirements",
     src = "requirements.in",

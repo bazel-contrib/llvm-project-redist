@@ -19,10 +19,50 @@ cp .bcr/presubmit.yml versions/{version}/presubmit.yml
 
 ## Adding or updating patches
 
-1. Add git-formatted patch files to `versions/{version}/patches/` named `NNN_description.patch` (three-digit zero-padded, sequential from `001`).
-2. Bump the version in `versions/{version}/version.txt` to the next `.bcr.N` (e.g. `17.0.3.bcr.6`).
-3. Open a pull request. CI validates patch naming, builds the archive, and Buildkite runs presubmit tests.
-4. On merge, CI dispatches the release workflow.
+Patches apply to the **post-overlay source tree**: the build extracts the upstream tarball, copies `utils/bazel/llvm-project-overlay/**` into the source root, and *then* runs `patch -p1` on each `versions/{version}/patches/NNN_*.patch` in numeric order. A hunk path is `llvm/BUILD.bazel`, not `utils/bazel/llvm-project-overlay/llvm/BUILD.bazel`.
+
+### Writing a new patch
+
+Materialize the post-overlay tree with a git baseline, edit in place, and export the diff:
+
+```bash
+# Materialize build/17.0.3/llvm-project-17.0.3.bcr.5.bzl/ with a git baseline commit
+bazel run //tools:cherry_pick -- prepare --llvm-version 17.0.3
+
+# Edit files in the printed tree path. When done, export the patch:
+git -C build/17.0.3/llvm-project-17.0.3.bcr.5.bzl diff \
+    > versions/17.0.3/patches/013_my_fix.patch
+git -C build/17.0.3/llvm-project-17.0.3.bcr.5.bzl reset --hard
+```
+
+`prepare` reuses an existing tree if it's already a git repo, so re-running between iterations is cheap.
+
+### Backporting an upstream commit
+
+Upstream Bazel files live under `utils/bazel/llvm-project-overlay/`, so a raw `git format-patch` from llvm-project won't apply. Use `pick` to fetch a commit, rewrite the paths, materialize the source tree, and try to apply:
+
+```bash
+# Pick into the highest version directory; description derived from commit subject
+bazel run //tools:cherry_pick -- pick <commit-sha-or-url>
+
+# Or pin the target version and description
+bazel run //tools:cherry_pick -- pick \
+    https://github.com/llvm/llvm-project/commit/<sha> \
+    --llvm-version 17.0.3 \
+    --description fix_build_for_msvc
+```
+
+If the patch applies cleanly, the canonical diff is written to the next free `NNN_*.patch` slot under `versions/{version}/patches/`. Review and commit.
+
+If the patch has conflicts, the materialized tree at `build/{llvm-version}/llvm-project-{version}.bzl/` is left with git-style conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) in the affected files. Resolve in place, then run the export command the helper prints.
+
+Pass `--no-apply` to skip materialization and just write the rewritten patch (useful when you trust the commit applies cleanly and want to skip the tarball download).
+
+### Submitting
+
+1. Bump `versions/{version}/version.txt` to the next `.bcr.N` (e.g. `17.0.3.bcr.6`).
+2. Open a pull request. CI validates patch naming, builds the archive, and Buildkite runs presubmit tests.
+3. On merge, CI dispatches the release workflow.
 
 ### Patch requirements
 
