@@ -21,19 +21,35 @@ _DEFAULT_WORKSPACE = (
 )
 
 
+def _user_cwd_path(s: str) -> Path:
+    """Resolve a relative path against the shell's working directory.
+
+    ``bazel run`` changes the process CWD to the runfiles dir before exec-ing
+    the script, which would break relative paths the user typed on the
+    command line. Anchor them to ``BUILD_WORKING_DIRECTORY`` (set by
+    ``bazel run`` to the invoking shell's CWD), falling back to the current
+    CWD when not under bazel.
+    """
+    p = Path(s)
+    if p.is_absolute():
+        return p
+    base = os.environ.get("BUILD_WORKING_DIRECTORY") or os.getcwd()
+    return Path(base) / p
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument(
         "--workspace",
-        type=Path,
+        type=_user_cwd_path,
         help="Path to git repo root (default: BUILD_WORKSPACE_DIRECTORY or script-relative)",
     )
     parser.add_argument(
         "--template",
         required=True,
-        type=Path,
+        type=_user_cwd_path,
         help="Path to release notes template file",
     )
     parser.add_argument(
@@ -54,7 +70,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Git tag for this release (e.g. llvmorg-17.0.3.bcr.5)",
     )
-    parser.add_argument("-o", "--output", type=Path, help="Write to file instead of stdout")
+    parser.add_argument("-o", "--output", type=_user_cwd_path, help="Write to file instead of stdout")
 
     return parser.parse_args()
 
