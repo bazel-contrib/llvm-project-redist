@@ -18,12 +18,12 @@ Runs twice daily on a schedule. Scans upstream llvm-project releases and opens a
 
 ## Release (`release.yaml`)
 
-Builds release archives, generates provenance attestations, and creates a GitHub release. Normally dispatched automatically by CI.
+Builds release archives, generates SLSA provenance attestations, creates a GitHub release, and opens a Bazel Central Registry PR. Normally dispatched automatically by CI.
 
-**If it fails:** Delete the failed release and its tag, fix the issue, then re-trigger the workflow from the Actions tab with the `llvm_version`. Release artifacts are never overwritten — a partial release must be deleted before retrying.
+Internally calls two reusable workflows whose builder identities the BCR's `slsa-verifier` trusts:
+- [`bazel-contrib/.github/.github/workflows/release_ruleset.yaml`](https://github.com/bazel-contrib/.github/blob/v7.6.0/.github/workflows/release_ruleset.yaml) — archive build + attestation
+- [`bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml`](https://github.com/bazel-contrib/publish-to-bcr/blob/v1.3.0/.github/workflows/publish.yaml) — BCR entry, MODULE.bazel/source.json attestations, and PR
 
-## BCR Publish (`bcr-publish.yaml`)
+The actual build runs in `.github/workflows/release_prep.sh` (path is hardcoded by [`release_ruleset.yaml`](https://github.com/bazel-contrib/.github/blob/v7.6.0/.github/workflows/release_ruleset.yaml) for supply-chain reasons).
 
-Opens a pull request to the Bazel Central Registry. Called automatically at the end of the release workflow.
-
-**If it fails:** Fix the issue and manually trigger the workflow from the Actions tab with the release `tag_name` (e.g. `llvmorg-17.0.3.bcr.5`). The branch is force-pushed, so re-runs will update an existing PR rather than creating a duplicate.
+**If it fails:** Delete the failed release and its tag, fix the issue, then re-trigger the workflow from the Actions tab with the `llvm_version`. Re-runs recreate the tag and force-push the BCR branch, so stale partial state from a previous run must be cleaned up first.

@@ -6,10 +6,17 @@
             "github": "UebelAndre",
             "github_user_id": 26427366,
             "name": "UebelAndre"
+        },
+        {
+            "email": "keithbsmiley@gmail.com",
+            "github": "keith",
+            "github_user_id": 283886,
+            "name": "Keith Smiley"
         }
     ],
     "repository": [
-        "github:UebelAndre/llvm-project-redist"
+        "github:llvm/llvm-project",
+        "github:bazel-contrib/llvm-project-redist"
     ],
     "versions": [],
     "yanked_versions": {}

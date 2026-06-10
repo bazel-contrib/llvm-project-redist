@@ -1,7 +1,10 @@
-# Builds release archives, generates provenance attestations, and creates a
-# GitHub release. Automatically dispatched by CI when version.txt changes on
-# main, or triggered manually. On success, calls bcr-publish to submit to
-# the Bazel Central Registry.
+# Builds release archives, generates SLSA attestations, creates a GitHub release,
+# and opens a Bazel Central Registry PR. Both halves of the pipeline use the
+# bazel-contrib reusable workflows so the resulting attestations are signed
+# under builder identities the BCR's slsa-verifier trusts.
+#
+# Triggered manually with the LLVM directory name (e.g. 17.0.4). The release
+# version is read from versions/{llvm_version}/version.txt.
 name: Release
 
 on:
@@ -12,85 +15,26 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  # Parse the requested version, promote the per-version presubmit.yml into
+  # .bcr/ so the release tag's tree carries the right BCR template, and push
+  # the tag. The detached commit is reachable only from the tag — main is
+  # unchanged.
+  parse:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout this repo
-        uses: actions/checkout@v4
-        with:
-          path: redist-repo
-
-      - name: Parse version
-        id: version
-        run: |
-          set -euo pipefail
-          LLVM_VERSION="${{ inputs.llvm_version }}"
-          VERSION_FILE="redist-repo/versions/${LLVM_VERSION}/version.txt"
-
-          if [ ! -f "$VERSION_FILE" ]; then
-            echo "ERROR: versions/${LLVM_VERSION}/version.txt not found"
-            exit 1
-          fi
-
-          VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
-          RELEASE_TAG="llvmorg-${VERSION}"
-
-          echo "llvm_version=${LLVM_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Releasing ${VERSION} (tag: ${RELEASE_TAG})"
-
-      - name: Setup Bazelisk
-        uses: bazelbuild/setup-bazelisk@v3
-
-      - name: Validate patches
-        working-directory: redist-repo
-        run: bazel run //tools:validate_patches -- versions
-
-      - name: Build redistribution artifact
-        id: build
-        working-directory: redist-repo
-        run: |
-          bazel run //tools:build -- \
-            --llvm-version "${{ steps.version.outputs.llvm_version }}" \
-            --version "${{ steps.version.outputs.version }}" \
-            --versions-dir=versions \
-            --output-dir=. \
-            --metadata-dir "${{ github.workspace }}/metadata"
-
-      - name: Stage release artifacts
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          mkdir -p release-artifacts
-          cp "redist-repo/llvm-project-${VERSION}.bzl.tar.xz" release-artifacts/
-          cp "redist-repo/llvm-project-${VERSION}.bzl.tar.zst" release-artifacts/
-          cp -r metadata release-artifacts/
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ steps.version.outputs.llvm_version }}
-          path: release-artifacts/
-          retention-days: 7
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      llvm_version: ${{ steps.version.outputs.llvm_version }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout this repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Parse version
         id: version
@@ -98,106 +42,73 @@ jobs:
           set -euo pipefail
           LLVM_VERSION="${{ inputs.llvm_version }}"
           VERSION_FILE="versions/${LLVM_VERSION}/version.txt"
-
           if [ ! -f "$VERSION_FILE" ]; then
-            echo "ERROR: versions/${LLVM_VERSION}/version.txt not found"
+            echo "ERROR: ${VERSION_FILE} not found"
             exit 1
           fi
-
           VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
-          RELEASE_TAG="llvmorg-${VERSION}"
+          TAG="llvmorg-${VERSION}"
+          echo "llvm_version=${LLVM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${VERSION} (tag: ${TAG})"
 
-          echo "llvm_version=$LLVM_VERSION" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-${{ steps.version.outputs.llvm_version }}
-
-      - name: Create tag
+      - name: Promote per-version presubmit.yml into .bcr/ and tag
         run: |
           set -euo pipefail
+          LLVM_VERSION="${{ steps.version.outputs.llvm_version }}"
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
+
+          cp "versions/${LLVM_VERSION}/presubmit.yml" .bcr/presubmit.yml
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+          git add .bcr/presubmit.yml
+          git commit --allow-empty -m "Promote versions/${LLVM_VERSION}/presubmit.yml into .bcr/ for ${TAG}"
           git tag -a "${TAG}" -m "LLVM ${VERSION}"
           git push origin "${TAG}"
 
-      - name: Generate release notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          LLVM_VERSION="${{ steps.version.outputs.llvm_version }}"
-          TAG="${{ steps.version.outputs.tag }}"
-          bazel run //tools:release_notes -- \
-            --workspace "${{ github.workspace }}" \
-            --template "${{ github.workspace }}/.github/release_notes.template" \
-            --llvm-version "${LLVM_VERSION}" \
-            --version "${VERSION}" \
-            --tag "${TAG}" \
-            -o "${{ github.workspace }}/release_notes.md"
-
-      - name: Generate checksums
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          for archive in \
-            "llvm-project-${VERSION}.bzl.tar.xz" \
-            "llvm-project-${VERSION}.bzl.tar.zst"; do
-            sha256sum "${archive}" > "${archive}.sha256"
-            echo -n "sha256-$(sha256sum "${archive}" | cut -d' ' -f1 | xxd -r -p | base64 -w0)" > "${archive}.integrity"
-          done
-
-      - name: Attest build provenance
-        id: attest
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.xz
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.zst
-
-      - name: Create attestation files
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.version.outputs.version }}"
-          for f in \
-            "llvm-project-${VERSION}.bzl.tar.xz" \
-            "llvm-project-${VERSION}.bzl.tar.zst"; do
-            cp "${{ steps.attest.outputs.bundle-path }}" "${f}.intoto.jsonl"
-          done
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: LLVM ${{ steps.version.outputs.version }}
-          body_path: ${{ github.workspace }}/release_notes.md
-          draft: false
-          generate_release_notes: false
-          overwrite_files: false
-          files: |
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.xz
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.xz.sha256
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.xz.integrity
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.xz.intoto.jsonl
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.zst
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.zst.sha256
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.zst.integrity
-            llvm-project-${{ steps.version.outputs.version }}.bzl.tar.zst.intoto.jsonl
-
-  bcr-publish:
-    needs: publish
-    uses: ./.github/workflows/bcr-publish.yaml
+  # Build the archives, attest provenance under the BCR-trusted release_ruleset
+  # builder ID, and publish a GitHub release. The actual build runs in
+  # .github/workflows/release_prep.sh (hardcoded path in release_ruleset.yaml).
+  release:
+    needs: parse
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@1d798ff015ed0696433e01e2c3ccbb2abefadad7 # v7.7.0
     with:
+      release_files: |
+        llvm-project-*.bzl.tar.xz
+        llvm-project-*.bzl.tar.xz.sha256
+        llvm-project-*.bzl.tar.xz.integrity
+        llvm-project-*.bzl.tar.zst
+        llvm-project-*.bzl.tar.zst.sha256
+        llvm-project-*.bzl.tar.zst.integrity
+      # //tools/... covers our internal tests including validate_patches_repo_test.
+      # Avoid //... — that would pull upstream LLVM targets.
+      bazel_test_command: "bazel test //tools/..."
+      prerelease: false
+      tag_name: ${{ needs.parse.outputs.tag }}
+
+  # Open a PR against the BCR fork. publish-to-bcr generates source.json,
+  # MODULE.bazel, attestations.json, and signs the entry attestations under
+  # the BCR-trusted publish builder ID. Reads .bcr/ from the release tag.
+  publish:
+    needs: [parse, release]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@bb52f0ccbffe38ed0b552b1d187a73608ec1f749 # v1.4.0
+    with:
+      tag_name: ${{ needs.parse.outputs.tag }}
+      tag_prefix: "llvmorg-"
+      registry_fork: bazel-contrib/bazel-central-registry
+      draft: false
       author_name: bazel-contrib-bot
       author_email: 210917734+bazel-contrib-bot@users.noreply.github.com
-      tag_name: ${{ needs.publish.outputs.tag }}
     secrets:
-      BCR_PUBLISH_TOKEN: ${{ secrets.BCR_PUBLISH_TOKEN }}
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
