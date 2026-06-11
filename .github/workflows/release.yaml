@@ -91,6 +91,10 @@ jobs:
       # Avoid //... — that would pull upstream LLVM targets.
       bazel_test_command: "bazel test //tools/..."
       prerelease: false
+      # Use only the curated notes from release_prep.sh (via tools:release_notes).
+      # The default appends GitHub's "What's Changed" since the previous tag,
+      # which double-counts commits and includes irrelevant churn between LLVM versions.
+      generate_release_notes: false
       tag_name: ${{ needs.parse.outputs.tag }}
 
   # Open a PR against the BCR fork. publish-to-bcr generates source.json,
@@ -102,7 +106,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@bb52f0ccbffe38ed0b552b1d187a73608ec1f749 # v1.4.0
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@c316f1611511a40423572303f66c80bb30bfe2f8 # v1.4.1
     with:
       tag_name: ${{ needs.parse.outputs.tag }}
       tag_prefix: "llvmorg-"
