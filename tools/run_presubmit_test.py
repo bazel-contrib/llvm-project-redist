@@ -20,6 +20,11 @@ def _fake_bazelci() -> types.ModuleType:
             "queue": "default",
             "python": "python3",
         },
+        "ubuntu2004": {
+            "docker-image": "gcr.io/bazel-public/ubuntu2004-java11",
+            "queue": "default",
+            "python": "python3",
+        },
         "macos_arm64": {
             "queue": "macos_arm64",
             "python": "python3",

@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""Generate Buildkite pipeline steps for changed ``versions/`` directories.
+"""Generate per-version Buildkite presubmit steps for changed ``versions/``.
 
-Detects which ``versions/X/`` directories changed, expands each version's
-``presubmit.yml`` matrix, and uploads one Buildkite step per expanded task.
-Each step prepares the LLVM source then delegates to ``bazelci.py runner``
-for the actual build/test execution (remote cache, BES, common flags, etc.).
+This script is appended to the Buildkite pipeline command after
+``bazelci.py project_pipeline`` so it can dynamically upload one step per
+expanded task in each changed version's ``versions/X/presubmit.yml`` — each
+preparing the LLVM source then delegating to ``bazelci.py runner`` for the
+actual build/test execution.
+
+The always-on ``bazel test //...`` repo-tests step is *not* generated
+here; it's a task in ``.bazelci/presubmit.yml`` that ``bazelci.py
+project_pipeline`` expands (its canonical default config path), so
+Buildkite always has at least one statically-declared step regardless of
+whether ``versions/`` changed. Keeping per-version expansion separate
+preserves the 1:1 mirror with what bazel-central-registry runs after
+publishing.
 """
 
 from __future__ import annotations
@@ -154,43 +163,44 @@ def cmd_pipeline(
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    if not changed:
-        print("No changed versions/ directories; uploading no-op pipeline.")
-        steps = [
-            {
-                "label": "No versions/ changes in this revision",
-                "agents": {"queue": "default"},
-                "commands": ["echo 'No versions/ changes; skipping presubmit matrix.'"],
-            }
-        ]
-    else:
-        steps = []
-        for llvm_version in sorted(changed):
-            version = read_version_string(llvm_version, str(rel_versions))
-            source_dir_name = f"llvm-project-{version}.bzl"
+    # Always-on repo tests come from .bazelci/presubmit.yml expanded by
+    # bazelci.py project_pipeline — this script only emits the dynamic
+    # per-version steps. When no versions/ dirs changed, we upload nothing;
+    # the repo_tests step from project_pipeline carries the build either way.
+    steps: list[dict[str, object]] = []
+    for llvm_version in sorted(changed):
+        version = read_version_string(llvm_version, str(rel_versions))
+        source_dir_name = f"llvm-project-{version}.bzl"
 
-            presubmit = repo_root / "versions" / llvm_version / "presubmit.yml"
-            if not presubmit.is_file():
-                print(f"ERROR: missing {presubmit}", file=sys.stderr)
-                return 1
+        presubmit = repo_root / "versions" / llvm_version / "presubmit.yml"
+        if not presubmit.is_file():
+            print(f"ERROR: missing {presubmit}", file=sys.stderr)
+            return 1
 
-            config = bazelci_mod.load_config(None, str(presubmit))
+        config = bazelci_mod.load_config(None, str(presubmit))
 
-            for expanded_name, task_config in config.get("tasks", {}).items():
-                platform = bazelci_mod.get_platform_for_task(expanded_name, task_config)
-                task_name = _original_task_name(expanded_name)
-                bazel_version = task_config.get("bazel", "")
-                label = f"{llvm_version} / {task_name} ({platform}, {bazel_version})"
-                commands = _build_step_commands(
-                    bazelci_mod,
-                    llvm_version,
-                    version,
-                    task_name,
-                    task_config,
-                    source_dir_name,
-                    platform,
-                )
-                steps.append(bazelci_mod.create_step(label, commands, platform))
+        for expanded_name, task_config in config.get("tasks", {}).items():
+            platform = bazelci_mod.get_platform_for_task(expanded_name, task_config)
+            task_name = _original_task_name(expanded_name)
+            bazel_version = task_config.get("bazel", "")
+            label = f"{llvm_version} / {task_name} ({platform}, {bazel_version})"
+            commands = _build_step_commands(
+                bazelci_mod,
+                llvm_version,
+                version,
+                task_name,
+                task_config,
+                source_dir_name,
+                platform,
+            )
+            steps.append(bazelci_mod.create_step(label, commands, platform))
+
+    if not steps:
+        # Nothing to upload — the repo_tests step from root presubmit.yml is
+        # independent and is already running. An empty upload would be a no-op;
+        # skip it to keep the build log clean.
+        print("No changed versions/ directories; nothing to upload.")
+        return 0
 
     payload = {"steps": steps}
     text = json.dumps(payload, indent=2)

@@ -1,10 +1,28 @@
----
-# Bootstrap for BuildKite: generates dynamic per-version / per-matrix steps (like BCR).
-# PyYAML is provided via @pip_deps when using `bazel run //tools:run_presubmit`.
+# Presubmit config consumed by `bazelci.py project_pipeline` — this is the
+# canonical default path bazelci looks for (see bazelci.py `load_config`:
+# `file_config = file_config or ".bazelci/presubmit.yml"`).
+#
+# Two tasks:
+#   * repo_tests — always-on `bazel test //...` against this repo's own
+#     tooling targets (validators, transforms, cherry-pick, build helpers,
+#     etc. under //tools:*).
+#   * generate_pipeline — bootstraps dynamic per-version upload via
+#     `tools/run_presubmit.py --pipeline`, which reads
+#     `versions/{X}/presubmit.yml` for every changed version and appends one
+#     Buildkite step per expanded task. Keeps the per-version 1:1 mirror with
+#     what bazel-central-registry runs after publishing, without inlining the
+#     full version list here.
 tasks:
+  repo_tests:
+    name: Repo tests (//...)
+    platform: ubuntu2004
+    bazel: 9.x
+    test_targets:
+      - '//...'
+
   generate_pipeline:
-    name: "Generate presubmit jobs"
+    name: Generate per-version jobs
     platform: ubuntu2204
-    bazel: 8.x
+    bazel: 9.x
     shell_commands:
       - "bazel run //tools:run_presubmit -- --pipeline"
