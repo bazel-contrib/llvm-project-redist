@@ -10,7 +10,11 @@ from tools.cherry_pick import (
     extract_sha,
     latest_version,
     next_patch_number,
+    patch_touched_paths,
+    picked_shas,
     rewrite_paths,
+    sha_already_picked,
+    stamp_upstream_header,
 )
 
 
@@ -124,6 +128,103 @@ class DeriveDescriptionTest(unittest.TestCase):
     def test_keeps_bazel_in_middle_of_subject(self) -> None:
         patch = "Subject: Add new bazel rules for foo\n"
         self.assertEqual(derive_description(patch), "add_new_bazel_rules_for_foo")
+
+
+class StampUpstreamHeaderTest(unittest.TestCase):
+    def test_prepends_header(self) -> None:
+        body = "diff --git a/foo b/foo\n"
+        out = stamp_upstream_header(body, "abc1234")
+        self.assertTrue(out.startswith("# Upstream-Commit: https://github.com/llvm/llvm-project/commit/abc1234\n"))
+        self.assertTrue(out.endswith(body))
+
+    def test_patch_p1_skips_leading_comment(self) -> None:
+        """Sanity: prepending a `#` line in front of unified diff is benign for `patch -p1`."""
+        # A unified-diff parser skips lines until the first `diff --git` / `---` / `+++`,
+        # so the header has no effect on apply. We assert the contract by inspecting
+        # the boundary directly rather than spawning the `patch` binary.
+        body = "diff --git a/x b/x\n--- a/x\n+++ b/x\n"
+        out = stamp_upstream_header(body, "deadbeef")
+        first_diff = out.index("diff --git")
+        self.assertEqual(out[:first_diff].count("\n"), 1)
+
+
+class PatchTouchedPathsTest(unittest.TestCase):
+    def test_extracts_destination_paths(self) -> None:
+        patch = (
+            "diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel\n"
+            "--- a/llvm/BUILD.bazel\n"
+            "+++ b/llvm/BUILD.bazel\n"
+            "diff --git a/clang/BUILD.bazel b/clang/BUILD.bazel\n"
+        )
+        self.assertEqual(
+            patch_touched_paths(patch),
+            ["clang/BUILD.bazel", "llvm/BUILD.bazel"],
+        )
+
+    def test_empty_patch(self) -> None:
+        self.assertEqual(patch_touched_paths(""), [])
+
+
+class PickedShasTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.patches = Path(self.tmpdir.name) / "patches"
+
+    def tearDown(self) -> None:
+        self.tmpdir.cleanup()
+
+    def test_missing_dir_returns_empty(self) -> None:
+        self.assertEqual(picked_shas(self.patches), set())
+
+    def test_reads_upstream_commit_comment(self) -> None:
+        self.patches.mkdir()
+        (self.patches / "010_foo.patch").write_text(
+            "# Upstream-Commit: https://github.com/llvm/llvm-project/commit/abc1234\ndiff --git a/x b/x\n"
+        )
+        self.assertEqual(picked_shas(self.patches), {"abc1234"})
+
+    def test_reads_from_header(self) -> None:
+        self.patches.mkdir()
+        full_sha = "0123456789abcdef0123456789abcdef01234567"
+        (self.patches / "010_bar.patch").write_text(f"From {full_sha} Mon Sep 17 00:00:00 2001\nSubject: foo\n")
+        self.assertEqual(picked_shas(self.patches), {full_sha})
+
+    def test_combines_both_header_styles(self) -> None:
+        self.patches.mkdir()
+        (self.patches / "001_a.patch").write_text(
+            "# Upstream-Commit: https://github.com/llvm/llvm-project/commit/abc1234\n"
+        )
+        (self.patches / "002_b.patch").write_text("From 0123456789abcdef0123456789abcdef01234567 Mon Sep 17\n")
+        self.assertEqual(
+            picked_shas(self.patches),
+            {"abc1234", "0123456789abcdef0123456789abcdef01234567"},
+        )
+
+    def test_normalizes_case(self) -> None:
+        self.patches.mkdir()
+        (self.patches / "001_a.patch").write_text(
+            "# Upstream-Commit: https://github.com/llvm/llvm-project/commit/ABC1234\n"
+        )
+        self.assertEqual(picked_shas(self.patches), {"abc1234"})
+
+
+class ShaAlreadyPickedTest(unittest.TestCase):
+    def test_full_sha_matches_short_picked(self) -> None:
+        self.assertTrue(sha_already_picked({"abc1234"}, "abc1234567890" * 3 + "abcd"))
+
+    def test_short_upstream_matches_full_picked(self) -> None:
+        full = "abc1234567890" + "1" * 27
+        self.assertTrue(sha_already_picked({full}, "abc12345"))
+
+    def test_below_min_length_picked_ignored(self) -> None:
+        # A 6-char picked SHA is too short to trust as a unique match.
+        self.assertFalse(sha_already_picked({"abc123"}, "abc1234" + "0" * 33))
+
+    def test_no_match(self) -> None:
+        self.assertFalse(sha_already_picked({"abc1234"}, "deadbeef" + "0" * 32))
+
+    def test_empty_picked(self) -> None:
+        self.assertFalse(sha_already_picked(set(), "abc1234"))
 
 
 class LatestVersionTest(unittest.TestCase):

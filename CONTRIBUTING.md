@@ -21,6 +21,33 @@ cp .bcr/presubmit.yml versions/{version}/presubmit.yml
 
 Patches apply to the **post-overlay source tree**: the build extracts the upstream tarball, copies `utils/bazel/llvm-project-overlay/**` into the source root, and *then* runs `patch -p1` on each `versions/{version}/patches/NNN_*.patch` in numeric order. A hunk path is `llvm/BUILD.bazel`, not `utils/bazel/llvm-project-overlay/llvm/BUILD.bazel`.
 
+### Finding candidate commits
+
+When refreshing patches on an older version, you usually want to know *what's changed upstream under `utils/bazel/` since this release was cut*. The `discover` subcommand lists those commits, skipping any that are already represented in `versions/{version}/patches/`:
+
+```bash
+# Zero-config: lazily clones a bare mirror under build/llvm-project-mirror/
+bazel run //tools:cherry_pick -- discover --llvm-version 17.0.3
+
+# Reuse an existing llvm-project checkout you already have
+bazel run //tools:cherry_pick -- discover \
+    --llvm-version 17.0.3 \
+    --llvm-checkout ~/src/llvm-project
+
+# Or set LLVM_PROJECT once and forget about the flag
+LLVM_PROJECT=~/src/llvm-project bazel run //tools:cherry_pick -- discover --llvm-version 17.0.3
+```
+
+Output is one line per unpicked commit (`<short-sha>  <date>  <subject>`); pass `--json` for scripting. The defaults scan `llvmorg-<llvm_version>..main`, overridable with `--base` / `--head`.
+
+Already-picked commits are detected via the `# Upstream-Commit:` header that `pick` stamps on saved patches (and the `From <sha>` line on existing format-patch-style files), so the list shrinks as you work through it.
+
+If you'd rather skip the wrapper, the equivalent raw command against a local clone is:
+
+```bash
+git -C ~/src/llvm-project log llvmorg-17.0.3..main -- utils/bazel/
+```
+
 ### Writing a new patch
 
 Materialize the post-overlay tree with a git baseline, edit in place, and export the diff:
@@ -52,11 +79,13 @@ bazel run //tools:cherry_pick -- pick \
     --description fix_build_for_msvc
 ```
 
-If the patch applies cleanly, the canonical diff is written to the next free `NNN_*.patch` slot under `versions/{version}/patches/`. Review and commit.
+If the patch applies cleanly, the canonical diff is written to the next free `NNN_*.patch` slot under `versions/{version}/patches/`, prefixed with a `# Upstream-Commit: <url>` header so `discover` knows it's been picked. Review and commit.
 
-If the patch has conflicts, the materialized tree at `build/{llvm-version}/llvm-project-{version}.bzl/` is left with git-style conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) in the affected files. Resolve in place, then run the export command the helper prints.
+If the patch has conflicts, the materialized tree at `build/{llvm-version}/llvm-project-{version}.bzl/` is left with git-style conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) in the affected files. Resolve in place, then run the export command the helper prints (it includes the `# Upstream-Commit:` header).
 
-Pass `--no-apply` to skip materialization and just write the rewritten patch (useful when you trust the commit applies cleanly and want to skip the tarball download).
+Pass `--no-apply` to skip materialization and just write the rewritten patch (useful when you trust the commit applies cleanly and want to skip the tarball download), or `--dry-run` to fetch and print a summary of touched paths without writing anything.
+
+Commits that don't touch `utils/bazel/` error out by default — pass `--allow-non-overlay` if you intentionally want to pick one anyway.
 
 ### Submitting
 
