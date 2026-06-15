@@ -20,7 +20,6 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
 bazel_dep(name = "rules_android", version = "0.6.6")
 bazel_dep(name = "rules_cc", version = "0.2.11")
-bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 bazel_dep(name = "rules_python", version = "1.9.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "zlib-ng", version = "2.0.7", repo_name = "llvm_zlib")
@@ -72,7 +71,6 @@ class TransformModuleBazelTest(unittest.TestCase):
             "protobuf",
             "rules_android",
             "rules_cc",
-            "rules_foreign_cc",
             "rules_python",
             "rules_shell",
             "zlib-ng",
