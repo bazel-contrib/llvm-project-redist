@@ -139,7 +139,7 @@ def _create_anonymous_repo(test_ws: Path, source_dir: Path, version: str) -> Non
     test_ws.mkdir(exist_ok=True, parents=True)
     (test_ws / "WORKSPACE").touch()
     (test_ws / "BUILD").touch()
-    rel_source = os.path.relpath(source_dir, test_ws)
+    rel_source = Path(os.path.relpath(source_dir, test_ws)).as_posix()
     (test_ws / "MODULE.bazel").write_text(
         f'bazel_dep(name = "llvm-project", version = "{version}")\n'
         f"local_path_override(\n"
@@ -241,6 +241,13 @@ def cmd_local(llvm_version: str, workspace: Path) -> int:
     test_ws = workspace / "temp_test_repos" / "llvm-project" / llvm_version / "anonymous_module"
 
     # Prepare source
+    #
+    # build.py runs as a bare script rather than through its py_binary
+    # bootstrap, so it does not inherit this process's in-memory sys.path.
+    # Export it as PYTHONPATH so build.py's own deps (zstandard) resolve.
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+
     logging.info("Preparing source for LLVM %s...", llvm_version)
     subprocess.run(
         [
@@ -253,6 +260,7 @@ def cmd_local(llvm_version: str, workspace: Path) -> int:
             "--prepare-only",
         ],
         check=True,
+        env=env,
     )
 
     # Create anonymous test workspace

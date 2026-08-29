@@ -1,0 +1,55 @@
+diff --git a/llvm/include/llvm/ADT/STLExtras.h b/llvm/include/llvm/ADT/STLExtras.h
+index 7edc582636c7..3195c007df40 100644
+--- a/llvm/include/llvm/ADT/STLExtras.h
++++ b/llvm/include/llvm/ADT/STLExtras.h
+@@ -1292,16 +1292,16 @@ public:
+   }
+ 
+   /// Compare this range with another.
+-  template <typename OtherT>
+-  friend bool operator==(const indexed_accessor_range_base &lhs,
+-                         const OtherT &rhs) {
+-    return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+-  }
+-  template <typename OtherT>
+-  friend bool operator!=(const indexed_accessor_range_base &lhs,
+-                         const OtherT &rhs) {
+-    return !(lhs == rhs);
+-  }
++  template <typename DerivedT0, typename BaseT0, typename T0,
++            typename PointerT0, typename ReferenceT0,
++            typename OtherT>
++  friend bool operator==(const indexed_accessor_range_base<DerivedT0, BaseT0, T0, PointerT0, ReferenceT0> &lhs,
++                         const OtherT &rhs);
++  template <typename DerivedT0, typename BaseT0, typename T0,
++            typename PointerT0, typename ReferenceT0,
++            typename OtherT>
++  friend bool operator!=(const indexed_accessor_range_base<DerivedT0, BaseT0, T0, PointerT0, ReferenceT0> &lhs,
++                         const OtherT &rhs);
+ 
+   /// Return the size of this range.
+   size_t size() const { return count; }
+@@ -1365,6 +1365,23 @@ protected:
+   /// The size from the owning range.
+   ptrdiff_t count;
+ };
++
++template <typename DerivedT, typename BaseT, typename T,
++          typename PointerT, typename ReferenceT,
++          typename OtherT>
++bool operator==(const indexed_accessor_range_base<DerivedT, BaseT, T, PointerT, ReferenceT> &lhs,
++                const OtherT &rhs) {
++  return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
++}
++
++template <typename DerivedT, typename BaseT, typename T,
++          typename PointerT, typename ReferenceT,
++          typename OtherT>
++bool operator!=(const indexed_accessor_range_base<DerivedT, BaseT, T, PointerT, ReferenceT> &lhs,
++                const OtherT &rhs) {
++  return !(lhs == rhs);
++}
++
+ } // end namespace detail
+ 
+ /// This class provides an implementation of a range of

@@ -1,0 +1,304 @@
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -878,6 +878,14 @@
+ 
+ libc_support_library(
+     name = "__support_stringutil",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = glob(["src/__support/StringUtil/tables/**/*.h"]) + [
+         "src/__support/StringUtil/error_to_string.cpp",
+         "src/__support/StringUtil/message_mapper.h",
+@@ -903,6 +911,14 @@
+ 
+ libc_support_library(
+     name = "__support_threads_mutex",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     hdrs = [
+         "src/__support/threads/mutex.h",
+         "src/__support/threads/mutex_common.h",
+@@ -2324,6 +2340,14 @@
+ 
+ libc_function(
+     name = "chdir",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/chdir.cpp"],
+     hdrs = ["src/unistd/chdir.h"],
+     deps = [
+@@ -2335,6 +2359,14 @@
+ 
+ libc_function(
+     name = "close",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/close.cpp"],
+     hdrs = ["src/unistd/close.h"],
+     deps = [
+@@ -2346,6 +2378,14 @@
+ 
+ libc_function(
+     name = "fchdir",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/fchdir.cpp"],
+     hdrs = ["src/unistd/fchdir.h"],
+     deps = [
+@@ -2357,6 +2397,14 @@
+ 
+ libc_function(
+     name = "fsync",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/fsync.cpp"],
+     hdrs = ["src/unistd/fsync.h"],
+     deps = [
+@@ -2368,6 +2416,14 @@
+ 
+ libc_function(
+     name = "ftruncate",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/ftruncate.cpp"],
+     hdrs = ["src/unistd/ftruncate.h"],
+     deps = [
+@@ -2379,6 +2435,14 @@
+ 
+ libc_function(
+     name = "link",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/link.cpp"],
+     hdrs = ["src/unistd/link.h"],
+     deps = [
+@@ -2390,6 +2454,14 @@
+ 
+ libc_function(
+     name = "linkat",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/linkat.cpp"],
+     hdrs = ["src/unistd/linkat.h"],
+     deps = [
+@@ -2401,6 +2473,14 @@
+ 
+ libc_function(
+     name = "lseek",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/lseek.cpp"],
+     hdrs = ["src/unistd/lseek.h"],
+     deps = [
+@@ -2412,6 +2492,14 @@
+ 
+ libc_function(
+     name = "read",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/read.cpp"],
+     hdrs = ["src/unistd/read.h"],
+     deps = [
+@@ -2423,6 +2511,14 @@
+ 
+ libc_function(
+     name = "readlink",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/readlink.cpp"],
+     hdrs = ["src/unistd/readlink.h"],
+     deps = [
+@@ -2434,6 +2530,14 @@
+ 
+ libc_function(
+     name = "readlinkat",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/readlinkat.cpp"],
+     hdrs = ["src/unistd/readlinkat.h"],
+     deps = [
+@@ -2445,6 +2549,14 @@
+ 
+ libc_function(
+     name = "rmdir",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/rmdir.cpp"],
+     hdrs = ["src/unistd/rmdir.h"],
+     deps = [
+@@ -2456,6 +2568,14 @@
+ 
+ libc_function(
+     name = "symlink",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/symlink.cpp"],
+     hdrs = ["src/unistd/symlink.h"],
+     deps = [
+@@ -2467,6 +2587,14 @@
+ 
+ libc_function(
+     name = "symlinkat",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/symlinkat.cpp"],
+     hdrs = ["src/unistd/symlinkat.h"],
+     deps = [
+@@ -2478,6 +2606,14 @@
+ 
+ libc_function(
+     name = "truncate",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/truncate.cpp"],
+     hdrs = ["src/unistd/truncate.h"],
+     deps = [
+@@ -2489,6 +2625,14 @@
+ 
+ libc_function(
+     name = "unlink",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/unlink.cpp"],
+     hdrs = ["src/unistd/unlink.h"],
+     deps = [
+@@ -2500,6 +2644,14 @@
+ 
+ libc_function(
+     name = "unlinkat",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/unlinkat.cpp"],
+     hdrs = ["src/unistd/unlinkat.h"],
+     deps = [
+@@ -2511,6 +2663,14 @@
+ 
+ libc_function(
+     name = "write",
++    target_compatible_with = select({
++        # llvmorg-17.0.5 ships no darwin/ source for this subsystem; upstream
++        # didn't support macOS for these targets at this release. Mark
++        # incompatible so dependents auto-skip on macOS rather than failing
++        # to build.
++        "@platforms//os:macos": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = ["src/unistd/linux/write.cpp"],
+     hdrs = ["src/unistd/write.h"],
+     deps = [
+

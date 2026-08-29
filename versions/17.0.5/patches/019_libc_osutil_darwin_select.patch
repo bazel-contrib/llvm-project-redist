@@ -1,0 +1,56 @@
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -829,11 +829,17 @@
+ libc_support_library(
+     name = "__support_osutil_syscall",
+     hdrs = ["src/__support/OSUtil/syscall.h"],
+-    textual_hdrs = [
+-        "src/__support/OSUtil/linux/syscall.h",
+-        "src/__support/OSUtil/linux/aarch64/syscall.h",
+-        "src/__support/OSUtil/linux/x86_64/syscall.h",
+-    ],
++    textual_hdrs = select({
++        "@platforms//os:macos": [
++            "src/__support/OSUtil/darwin/syscall.h",
++            "src/__support/OSUtil/darwin/arm/syscall.h",
++        ],
++        "//conditions:default": [
++            "src/__support/OSUtil/linux/syscall.h",
++            "src/__support/OSUtil/linux/aarch64/syscall.h",
++            "src/__support/OSUtil/linux/x86_64/syscall.h",
++        ],
++    }),
+     deps = [
+         ":__support_common",
+         ":libc_root",
+@@ -843,9 +849,10 @@
+ libc_support_library(
+     name = "__support_osutil_io",
+     hdrs = ["src/__support/OSUtil/io.h"],
+-    textual_hdrs = [
+-        "src/__support/OSUtil/linux/io.h",
+-    ],
++    textual_hdrs = select({
++        "@platforms//os:macos": ["src/__support/OSUtil/darwin/io.h"],
++        "//conditions:default": ["src/__support/OSUtil/linux/io.h"],
++    }),
+     deps = [
+         ":__support_common",
+         ":__support_cpp_string_view",
+@@ -858,10 +865,11 @@
+ libc_support_library(
+     name = "__support_osutil_quick_exit",
+     hdrs = ["src/__support/OSUtil/quick_exit.h"],
+-    textual_hdrs = [
+-        "src/__support/OSUtil/linux/quick_exit.h",
++    textual_hdrs = select({
++        "@platforms//os:macos": ["src/__support/OSUtil/darwin/quick_exit.h"],
+         #TODO: add support for GPU quick_exit (isn't just in a header.)
+-    ],
++        "//conditions:default": ["src/__support/OSUtil/linux/quick_exit.h"],
++    }),
+     deps = [
+         ":__support_osutil_syscall",
+         ":libc_root",
+

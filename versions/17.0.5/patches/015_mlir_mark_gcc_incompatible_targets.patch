@@ -1,0 +1,31 @@
+diff --git a/mlir/BUILD.bazel b/mlir/BUILD.bazel
+index cc1d085224f0..c3a2f123b776 100644
+--- a/mlir/BUILD.bazel
++++ b/mlir/BUILD.bazel
+@@ -306,6 +306,14 @@ gentbl_cc_library(
+ 
+ cc_library(
+     name = "IR",
++    # MLIR's iterator_range SFINAE patterns don't compile with GCC < 8.4
++    # (debian10 ships gcc 8.3). Mark the foundational target incompatible
++    # with gcc so anything depending on it auto-propagates the constraint
++    # and the rest of MLIR auto-skips on gcc-driven builds.
++    target_compatible_with = select({
++        "@rules_cc//cc/compiler:gcc": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = glob([
+         "lib/IR/*.cpp",
+         "lib/IR/*.h",
+@@ -4142,6 +4150,11 @@ cc_library(
+ 
+ cc_library(
+     name = "Support",
++    # See target_compatible_with on :IR — same reasoning.
++    target_compatible_with = select({
++        "@rules_cc//cc/compiler:gcc": ["@platforms//:incompatible"],
++        "//conditions:default": [],
++    }),
+     srcs = glob([
+         "lib/Support/*.cpp",
+         "lib/Support/*.h",

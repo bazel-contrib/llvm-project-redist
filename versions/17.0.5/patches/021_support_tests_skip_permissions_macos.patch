@@ -1,0 +1,27 @@
+diff --git a/llvm/unittests/BUILD.bazel b/llvm/unittests/BUILD.bazel
+--- a/llvm/unittests/BUILD.bazel
++++ b/llvm/unittests/BUILD.bazel
+@@ -629,7 +629,21 @@
+             "Support/ParallelTest.cpp",
+         ],
+     ),
+-    args = ["--gtest_filter=-ProgramTest.CreateProcessTrailingSlash"],
++    args = select({
++        # FileSystemTest.permissions additionally fails on macOS: it tries to
++        # set the set-group-ID bit on a file in /tmp, which is owned by the
++        # wheel group on macOS, so non-admin users can't set setgid on files
++        # there. Upstream's fix (commit 4e8c730fc23b, post-llvmorg-17.0.5)
++        # explicitly chowns the test file to the effective gid first, but
++        # also depends on fs::changeFileOwnership which doesn't exist at
++        # 17.0.5. Filter the test out on macOS until those land.
++        "@platforms//os:macos": [
++            "--gtest_filter=-ProgramTest.CreateProcessTrailingSlash:FileSystemTest.permissions",
++        ],
++        "//conditions:default": [
++            "--gtest_filter=-ProgramTest.CreateProcessTrailingSlash",
++        ],
++    }),
+     copts = [
+         "$(STACK_FRAME_UNLIMITED)",
+     ],
+

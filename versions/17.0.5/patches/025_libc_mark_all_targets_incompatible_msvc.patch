@@ -1,0 +1,130 @@
+diff --git a/libc/libc_build_rules.bzl b/libc/libc_build_rules.bzl
+--- a/libc/libc_build_rules.bzl
++++ b/libc/libc_build_rules.bzl
+@@ -11,15 +11,38 @@
+ LIBC_ROOT_TARGET = ":libc_root"
+ INTERNAL_SUFFIX = ".__internal__"
+ 
+-def _libc_library(name, copts = None, **kwargs):
++# LLVM libc requires a GCC- or Clang-compatible compiler; it does not build
++# with MSVC cl.exe under any build system. src/__support/macros/optimization.h
++# #errors with "Unhandled compiler" unless LIBC_COMPILER_IS_CLANG or
++# LIBC_COMPILER_IS_GCC is set and uses __builtin_expect, and
++# src/__support/endian.h #errors unless __BYTE_ORDER__ is predefined. cl.exe
++# provides none of these. This mirrors the CMake build, whose Windows
++# instructions (libc/config/windows/README.md) build libc with clang-cl.
++#
++# Gate on the compiler rather than on @platforms//os:windows so the condition
++# names the actual reason libc can't be built. Note this currently also skips
++# libc on the clang-cl job: `--repo_env=USE_CLANG_CL=1` swaps the tools to
++# clang-cl.exe but leaves the toolchain reporting compiler = "msvc-cl", so
++# this select still matches there. Exercising libc under clang-cl -- the
++# configuration CMake documents -- needs the separate `compiler = "clang-cl"`
++# toolchain that rules_cc generates at
++# @local_config_cc//:cc-toolchain-x64_windows-clang-cl but does not register.
++LIBC_INCOMPATIBLE_WITH_MSVC = select({
++    "@rules_cc//cc/compiler:msvc-cl": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
++def _libc_library(name, copts = None, target_compatible_with = None, **kwargs):
+     """Internal macro to serve as a base for all other libc library rules.
+ 
+     Args:
+       name: Target name.
+       copts: The special compiler options for the target.
++      target_compatible_with: Extra constraints, appended to the MSVC gate.
+       **kwargs: All other attributes relevant for the cc_library rule.
+     """
+     copts = copts or []
++    target_compatible_with = target_compatible_with or []
+ 
+     # We want all libc sources to be compiled with "hidden" visibility.
+     # The public symbols will be given "default" visibility explicitly.
+@@ -29,6 +47,8 @@
+         name = name,
+         copts = copts,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_MSVC,
+         **kwargs
+     )
+ 
+@@ -44,6 +64,7 @@
+         deps = None,
+         copts = None,
+         local_defines = None,
++        target_compatible_with = None,
+         **kwargs):
+     """Add target for a libc function.
+ 
+@@ -63,9 +84,11 @@
+       local_defines: The preprocessor defines which will be prepended with -D
+                      and passed to the compile command of this target but not
+                      its deps.
++      target_compatible_with: Extra constraints, appended to the MSVC gate.
+       **kwargs: Other attributes relevant for a cc_library. For example, deps.
+     """
+     deps = deps or []
++    target_compatible_with = target_compatible_with or []
+ 
+     # We use the explicit equals pattern here because append and += mutate the
+     # original list, where this creates a new list and stores it in deps.
+@@ -82,6 +105,8 @@
+         deps = deps,
+         copts = copts,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_MSVC,
+         **kwargs
+     )
+ 
+@@ -98,6 +123,7 @@
+         deps = deps,
+         copts = copts,
+         local_defines = local_defines,
++        target_compatible_with = target_compatible_with,
+         **kwargs
+     )
+ 
+diff --git a/libc/test/libc_test_rules.bzl b/libc/test/libc_test_rules.bzl
+--- a/libc/test/libc_test_rules.bzl
++++ b/libc/test/libc_test_rules.bzl
+@@ -13,9 +13,19 @@
+ """
+ 
+ load("@rules_cc//cc:cc_test.bzl", "cc_test")
+-load("//libc:libc_build_rules.bzl", "INTERNAL_SUFFIX")
++load(
++    "//libc:libc_build_rules.bzl",
++    "INTERNAL_SUFFIX",
++    "LIBC_INCOMPATIBLE_WITH_MSVC",
++)
+ 
+-def libc_test(name, srcs, libc_function_deps, deps = [], **kwargs):
++def libc_test(
++        name,
++        srcs,
++        libc_function_deps,
++        deps = [],
++        target_compatible_with = [],
++        **kwargs):
+     """Add target for a libc test.
+ 
+     Args:
+@@ -23,6 +33,7 @@
+       srcs: List of sources for the test.
+       libc_function_deps: List of libc_function targets used by this test.
+       deps: The list of other libraries to be linked in to the test target.
++      target_compatible_with: Extra constraints, appended to the MSVC gate.
+       **kwargs: Attributes relevant for a cc_test. For example, name, srcs.
+     """
+     all_function_deps = libc_function_deps + ["//libc:errno"]
+@@ -35,5 +46,7 @@
+         ] + deps,
+         features = ["-link_llvmlibc"],  # Do not link libllvmlibc.a
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_MSVC,
+         **kwargs
+     )

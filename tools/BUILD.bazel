@@ -87,6 +87,7 @@ py_binary(
     name = "setup_presubmit",
     srcs = ["setup_presubmit.py"],
     deps = [
+        ":build",
         ":presubmit_logic",
         "@llvm_project_redist_pip//pyyaml",
     ],

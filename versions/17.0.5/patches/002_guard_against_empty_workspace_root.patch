@@ -1,0 +1,13 @@
+diff --git a/llvm/tblgen.bzl b/llvm/tblgen.bzl
+index d43390918e39..9486edf291e9 100644
+--- a/llvm/tblgen.bzl
++++ b/llvm/tblgen.bzl
+@@ -35,7 +35,7 @@ def gentbl(
+       tblgen_args: Extra arguments string to pass to the tblgen binary.
+       **kwargs: Keyword arguments to pass to subsidiary cc_library() rule.
+     """
+-    llvm_project_execroot_path = Label("//llvm:tblgen.bzl").workspace_root
++    llvm_project_execroot_path = Label("//llvm:tblgen.bzl").workspace_root or "."
+ 
+     if td_file not in td_srcs:
+         td_srcs += [td_file]

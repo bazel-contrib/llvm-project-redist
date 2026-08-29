@@ -42,6 +42,46 @@ import yaml
 
 logging = std_logging.getLogger(__name__)
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPTS_DIR.parent
+
+
+def _workspace_root() -> Path:
+    """Return the source tree this invocation should read from and write to.
+
+    ``bazel run`` execs the script out of the runfiles tree, so
+    ``Path(__file__).parent.parent`` resolves to the runfiles ``_main``
+    directory rather than the checkout. Nothing this tool touches is a
+    runfiles entry: ``versions/<v>/presubmit.yml`` is written back to the
+    source tree, and the prepared source it reads ``.bazelrc`` from is
+    generated at runtime by ``cherry_pick prepare`` (so it can never be a
+    build-time ``data`` dep). ``BUILD_WORKSPACE_DIRECTORY`` — set by
+    ``bazel run`` to the workspace root — is the right anchor for all of
+    them. Fall back to the ``__file__``-relative root so running the script
+    directly still works. Mirrors ``setup_presubmit._workspace_root``.
+    """
+    env = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
+    if env:
+        return Path(env)
+    return _REPO_ROOT
+
+
+def _user_cwd_path(s: str) -> Path:
+    """Resolve a relative path against the shell's working directory.
+
+    ``bazel run`` changes the process CWD to the runfiles dir before
+    exec-ing the script, which would break relative paths the user typed on
+    the command line. Anchor them to ``BUILD_WORKING_DIRECTORY`` (set by
+    ``bazel run`` to the invoking shell's CWD), falling back to the current
+    CWD when not under bazel. Mirrors ``release_notes._user_cwd_path``.
+    """
+    p = Path(s)
+    if p.is_absolute():
+        return p
+    base = os.environ.get("BUILD_WORKING_DIRECTORY") or os.getcwd()
+    return Path(base) / p
+
+
 # Lines in .bazelrc look like:
 #   <cmd>[:<config>] <flag> [<flag> ...]
 # where <cmd> is one of: build, common, test, run, query, fetch, sync, etc.
@@ -85,7 +125,7 @@ def parse_bazelrc(path: Path) -> dict[str | None, list[str]]:
     Imports are NOT currently followed (none of llvm-project's bazelrc
     uses ``import``; if it ever does, this function will need extending).
     """
-    raw = path.read_text()
+    raw = path.read_text(encoding="utf-8")
     # Join backslash-continued lines so a single logical directive ends up
     # on one parsed line. Trailing-backslash + newline + leading whitespace
     # collapses to a single space.
@@ -139,30 +179,99 @@ def expand_config(
     return result
 
 
-def flags_for(configs: dict[str | None, list[str]], config_name: str) -> list[str]:
+def flags_for(
+    configs: dict[str | None, list[str]],
+    config_name: str,
+    dropped_flags: frozenset[str] = frozenset(),
+) -> list[str]:
     """Compose the full flag list a task should pass to ``bazel test``.
 
     Order: unconditional bazelrc flags → expanded named-config flags →
     common task flags → project invariant flags. (Later flags override
-    earlier ones in Bazel's command-line semantics.)
+    earlier ones in Bazel's command-line semantics.) Any flag in
+    *dropped_flags* is filtered out at the end — used by tasks that
+    can't satisfy a specific upstream `.bazelrc` assumption.
     """
     unconditional = configs.get(None, [])
     expanded = expand_config(configs, config_name)
-    return [*unconditional, *expanded, *COMMON_TASK_FLAGS, *PROJECT_INVARIANT_FLAGS]
+    combined = [*unconditional, *expanded, *COMMON_TASK_FLAGS, *PROJECT_INVARIANT_FLAGS]
+    if not dropped_flags:
+        return combined
+    return [f for f in combined if f not in dropped_flags]
 
+
+# Per-task shell commands to run before `bazel test`. Upstream's
+# `build:generic_clang` sets ``--linkopt=-fuse-ld=lld`` with the note
+# "assume that anybody using clang also has lld available"; that holds
+# for llvm-zorg's Google Bazel bot (which bakes ``lld-N`` into its
+# custom image — see ``google-bazel-bot/docker/Dockerfile``) but not
+# for bazelci's stock ``gcr.io/bazel-public/{debian10,ubuntu2004}``
+# runners, where ``clang: error: invalid linker name in argument
+# '-fuse-ld=lld'`` fires on every link. Install ``lld`` before the
+# build so the flag resolves. ``debian10`` and ``ubuntu2004`` are both
+# Debian-based and accept the same apt-get invocation.
+_LINUX_CLANG_SHELL_COMMANDS: list[str] = [
+    "sudo apt-get update",
+    "sudo apt-get install -y --no-install-recommends lld",
+]
+
+# Flags to strip from the macOS clang tasks. Upstream's
+# ``build:generic_clang`` ships ``--linkopt=-fuse-ld=lld``, but no
+# upstream CI actually exercises bazel-on-macOS with lld: llvm-zorg's
+# google-bazel-bot is Linux-only (no macOS Dockerfile, no macOS refs
+# under ``google-bazel-bot/``), and the LLVM buildbot masters that do
+# run macOS never invoke bazel. So the flag is an unverified claim on
+# Mach-O. On the bazelci macOS runners it also can't be satisfied
+# without extra setup: clang's ``-fuse-ld=lld`` looks for ``ld64.lld``
+# (not ``ld.lld``) on Mach-O, and homebrew's ``lld`` formula is
+# keg-only, so ``ld64.lld`` isn't on the sandbox PATH even after
+# ``brew install lld``. Falling back to Apple's ``ld64`` is no worse
+# than what upstream tests — which is nothing — so drop the flag.
+_MACOS_CLANG_DROPPED_FLAGS: frozenset[str] = frozenset(
+    {
+        "--linkopt=-fuse-ld=lld",
+        "--host_linkopt=-fuse-ld=lld",
+    }
+)
 
 # Task structure — same shape across versions; only the .bazelrc expansion
 # and the matrix entries differ. Each entry is:
-#   (task_name, display_name, platform_expr, config_name)
+#   (task_name, display_name, platform_expr, config_name,
+#    shell_commands, dropped_flags)
 # platform_expr is either a literal platform (e.g., "windows") or the
-# matrix placeholder "${{ platform }}".
-_TASK_SPEC: list[tuple[str, str, str, str]] = [
-    ("run_tests", "bazel test //... (linux, clang)", "${{ platform }}", "generic_clang"),
-    ("run_tests_gcc", "bazel test //... (linux, gcc)", "${{ platform }}", "generic_gcc"),
-    ("run_tests_macos", "bazel test //... (macOS x86_64, clang)", "macos", "generic_clang"),
-    ("run_tests_macos_arm64", "bazel test //... (macOS arm64, clang)", "macos_arm64", "generic_clang"),
-    ("run_tests_windows", "bazel test //... (windows, clang-cl)", "windows", "clang-cl"),
-    ("run_tests_windows_msvc", "bazel test //... (windows, msvc)", "windows", "msvc"),
+# matrix placeholder "${{ platform }}". shell_commands is a possibly-empty
+# list of pre-`bazel test` commands (bazelci runs these via the task
+# config's ``shell_commands`` field on Linux/macOS; omitted from the YAML
+# entirely when empty). dropped_flags is a possibly-empty set of flags
+# to strip after expansion (see ``_MACOS_CLANG_DROPPED_FLAGS``).
+_TASK_SPEC: list[tuple[str, str, str, str, list[str], frozenset[str]]] = [
+    (
+        "run_tests",
+        "bazel test //... (linux, clang)",
+        "${{ platform }}",
+        "generic_clang",
+        _LINUX_CLANG_SHELL_COMMANDS,
+        frozenset(),
+    ),
+    ("run_tests_gcc", "bazel test //... (linux, gcc)", "${{ platform }}", "generic_gcc", [], frozenset()),
+    (
+        "run_tests_macos",
+        "bazel test //... (macOS x86_64, clang)",
+        "macos",
+        "generic_clang",
+        [],
+        _MACOS_CLANG_DROPPED_FLAGS,
+    ),
+    (
+        "run_tests_macos_arm64",
+        "bazel test //... (macOS arm64, clang)",
+        "macos_arm64",
+        "generic_clang",
+        [],
+        _MACOS_CLANG_DROPPED_FLAGS,
+    ),
+    ("run_tests_windows_clang_cl", "bazel test //... (windows, clang-cl)", "windows", "clang-cl", [], frozenset()),
+    ("run_tests_windows_msvc", "bazel test //... (windows, msvc)", "windows", "msvc", [], frozenset()),
 ]
 
 
@@ -175,14 +284,17 @@ def render_presubmit(
     configs = parse_bazelrc(bazelrc_path)
 
     tasks: dict[str, Any] = {}
-    for task_name, display, platform, config_name in _TASK_SPEC:
-        tasks[task_name] = {
+    for task_name, display, platform, config_name, shell_commands, dropped_flags in _TASK_SPEC:
+        task: dict[str, Any] = {
             "name": display,
             "platform": platform,
             "bazel": "${{ bazel }}",
-            "test_flags": flags_for(configs, config_name),
-            "test_targets": ["@llvm-project//..."],
         }
+        if shell_commands:
+            task["shell_commands"] = list(shell_commands)
+        task["test_flags"] = flags_for(configs, config_name, dropped_flags)
+        task["test_targets"] = ["@llvm-project//..."]
+        tasks[task_name] = task
 
     return {
         "matrix": {
@@ -238,12 +350,12 @@ def main() -> None:
     parser.add_argument("--llvm-version", required=True, help="Version directory under versions/ (e.g. 17.0.5)")
     parser.add_argument(
         "--versions-dir",
-        type=Path,
+        type=_user_cwd_path,
         help="Path to versions/ directory (default: <repo>/versions)",
     )
     parser.add_argument(
         "--bazelrc",
-        type=Path,
+        type=_user_cwd_path,
         help=(
             "Path to a .bazelrc to render from (default: read from the prepared "
             "source at build/<llvm_version>/llvm-project-<version>.bzl/.bazelrc, "
@@ -266,7 +378,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         "-o",
-        type=Path,
+        type=_user_cwd_path,
         help="Write the rendered YAML here (default: versions/<llvm_version>/presubmit.yml)",
     )
     parser.add_argument(
@@ -276,7 +388,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = _workspace_root()
     versions_dir = args.versions_dir or repo_root / "versions"
 
     if args.bazelrc is not None:
@@ -297,7 +409,7 @@ def main() -> None:
     target = args.output or versions_dir / args.llvm_version / "presubmit.yml"
 
     if args.check:
-        existing = target.read_text() if target.is_file() else ""
+        existing = target.read_text(encoding="utf-8") if target.is_file() else ""
         if existing == output_text:
             logging.info("%s is up to date.", target)
             return
@@ -316,7 +428,10 @@ def main() -> None:
         )
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(output_text)
+    # Always UTF-8: the rendered header contains non-ASCII punctuation, and
+    # Python's default encoding is the locale codepage on Windows (cp1252),
+    # which would silently write mojibake into a checked-in file.
+    target.write_text(output_text, encoding="utf-8")
     logging.info("Wrote %s", target)
 
 

@@ -1,0 +1,23 @@
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -4828,6 +4828,7 @@
+     name = "lit",
+     testonly = True,
+     srcs = ["utils/lit/lit.py"] + glob(["utils/lit/lit/**/*.py"]),
++    imports = ["utils/lit"],
+ )
+ 
+ cc_library(
+
+diff --git a/llvm/lit_test.bzl b/llvm/lit_test.bzl
+--- a/llvm/lit_test.bzl
++++ b/llvm/lit_test.bzl
+@@ -35,6 +35,7 @@
+         args = args + ["-v"] + ["$(execpath %s)" % src for src in srcs],
+         data = data + srcs,
+         legacy_create_init = False,
++        deps = [Label("//llvm:lit")],
+         **kwargs
+     )
+ 

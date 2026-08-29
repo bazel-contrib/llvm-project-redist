@@ -1,0 +1,27 @@
+diff --git a/.bazelrc b/.bazelrc
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -107,6 +107,23 @@
+ ###############################################################################
+ # Generic Windows flags common to both MSVC and Clang.
+ ###############################################################################
++
++# Undo the unconditional `build --force_pic` above. CMake's LLVM_ENABLE_PIC
++# also defaults ON, but it is explicitly a no-op on Windows -- see the
++# `elseif( WIN32 OR CYGWIN)` branch at
++# llvm/cmake/modules/HandleLLVMOptions.cmake:339, whose entire body is the
++# comment "On Windows all code is PIC. MinGW warns if -fPIC is used."
++#
++# Bazel has no such carve-out, and the difference is fatal rather than
++# cosmetic: rules_cc's auto-configured Windows toolchain declares the
++# `supports_pic` feature only in the non-MSVC branch of
++# cc/private/toolchain/windows_cc_toolchain_config.bzl, so with cl.exe --
++# or with clang-cl, which reuses the same MSVC branch -- neither `pic` nor
++# `supports_pic` is enabled and configure_features() calls fail():
++#   "PIC compilation is requested but the toolchain does not support it
++#    (feature named 'supports_pic' is not enabled)"
++# That aborts analysis before a single target is configured.
++build:windows --noforce_pic
+ 
+ # C++17 standard version is required.
+ build:windows --cxxopt=/std:c++17 --host_cxxopt=/std:c++17

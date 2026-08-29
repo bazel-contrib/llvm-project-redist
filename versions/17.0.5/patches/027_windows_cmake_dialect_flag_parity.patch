@@ -1,0 +1,44 @@
+diff --git a/.bazelrc b/.bazelrc
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -116,6 +116,16 @@ build:windows --copt=/Zc:strictStrings --host_copt=/Zc:strictStrings
+ build:windows --copt=/Oi --host_copt=/Oi
+ build:windows --cxxopt=/Zc:rvalueCast --host_cxxopt=/Zc:rvalueCast
+ 
++# Mirror the two conformance flags the CMake build applies to every Windows
++# compiler (llvm/cmake/modules/HandleLLVMOptions.cmake:508 and :520). Both are
++# `CLIgnoredFlag` in clang/include/clang/Driver/Options.td -- clang-cl already
++# behaves this way -- so they only change the cl.exe builds, matching CMake.
++build:windows --copt=/Zc:inline --host_copt=/Zc:inline
++# Without this cl.exe reports __cplusplus as 199711L regardless of /std, so
++# any `#if __cplusplus >= 201703L` in LLVM or its headers silently takes the
++# pre-C++17 path. CMake applies it to C++ only.
++build:windows --cxxopt=/Zc:__cplusplus --host_cxxopt=/Zc:__cplusplus
++
+ # Use the more flexible bigobj format for C++ files that have lots of symbols.
+ build:windows --cxxopt=/bigobj --host_cxxopt=/bigobj
+ 
+@@ -125,6 +135,23 @@ build:windows --cxxopt=/bigobj --host_cxxopt=/bigobj
+ 
+ build:msvc --config=windows
+ 
++# Use the standards-conforming preprocessor. cl.exe's default (legacy)
++# preprocessor mis-tokenizes raw string literals and drops trailing
++# `__VA_ARGS__` elements, which breaks LLVM's macro-heavy generated code:
++#   Options.inc: warning C4003: not enough arguments for function-like macro
++#     invocation 'GENERATE_OPTION_WITH_MARSHALLING' -- fatal here because of
++#     /WX, and it cascades into ~100 bogus syntax errors in Options.inc and
++#     CompilerInvocation.cpp.
++#   DependencyDirectivesScannerTest.cpp: error C3688/C2017 on the
++#     `R"x(_Pragma("push_macro(\"MACRO\")"))x"` literals inside EXPECT_* macros.
++#
++# CMake applies this too, but only for MSVC proper
++# (llvm/cmake/modules/HandleLLVMOptions.cmake:510-514), so it belongs on
++# `msvc` rather than `windows`. clang-cl neither needs it (its preprocessor is
++# already conforming) nor accepts it -- unlike /Zc:inline and /Zc:__cplusplus,
++# /Zc:preprocessor has no entry at all in clang/include/clang/Driver/Options.td.
++build:msvc --copt=/Zc:preprocessor --host_copt=/Zc:preprocessor
++
+ build:msvc --copt=/WX --host_copt=/WX    # Treat warnings as errors...
+ # ...but disable the ones that are violated
+ build:msvc --copt=/wd4141 --host_copt=/wd4141 # inline used more than once

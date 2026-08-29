@@ -1,0 +1,33 @@
+diff --git a/.bazelrc b/.bazelrc
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -195,6 +195,29 @@
+ # Switch from MSVC to the `clang-cl` compiler.
+ build:clang-cl --compiler=clang-cl
+ 
++# ...which `--compiler` alone no longer does. `--compiler` selects an entry
++# from a `cc_toolchain_suite`, part of the pre-platforms toolchain resolution
++# that Bazel 7 removed; under platform-based resolution it is accepted but
++# inert, so `--config=clang-cl` silently built everything with cl.exe.
++#
++# rules_cc's supported switch is the USE_CLANG_CL repository environment
++# variable (cc/private/toolchain/windows_cc_configure.bzl, `_use_clang_cl`).
++# It repoints CL/LINK/LIB at clang-cl.exe/lld-link.exe/llvm-lib.exe inside
++# the already-registered x64_windows toolchain, so nothing extra has to be
++# registered. USE_CLANG_CL is listed in cc_autoconf's `environ`, so
++# --repo_env refetches the toolchain repo when it changes, and the repo rule
++# calls auto_configure_fail() when no LLVM installation is found rather than
++# quietly falling back to cl.exe.
++#
++# Caveat: this swaps the tools but not the toolchain's identity -- the
++# cc_toolchain_config still reports compiler = "msvc-cl" (the separate
++# `compiler = "clang-cl"` toolchain rules_cc generates at
++# @local_config_cc//:cc-toolchain-x64_windows-clang-cl is not registered and
++# needs an execution platform carrying the
++# @rules_cc//cc/private/toolchain:clang-cl constraint). So select()s keyed on
++# @rules_cc//cc/compiler:msvc-cl still match here -- see libc_build_rules.bzl.
++build:clang-cl --repo_env=USE_CLANG_CL=1
++
+ # Use Clang's internal warning flags instead of the ones that sometimes map
+ # through to MSVC's flags.
+ build:clang-cl --copt=/clang:-Wall --host_copt=/clang:-Wall

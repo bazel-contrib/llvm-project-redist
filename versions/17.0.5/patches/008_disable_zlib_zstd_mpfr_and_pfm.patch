@@ -1,0 +1,58 @@
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+index 0ee3395260b5..51676d0398c2 100644
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -39,7 +39,7 @@ MEMORY_COPTS = [
+ # Flag documentation: https://bazel.build/extending/config
+ string_flag(
+     name = "mpfr",
+-    build_setting_default = "external",
++    build_setting_default = "disable",
+     values = [
+         "disable",  # Skip tests that need mpfr
+         "external",  # Build mpfr from source
+diff --git a/lld/BUILD.bazel b/lld/BUILD.bazel
+index fb6e2397cc84..2cb2fab448d6 100644
+--- a/lld/BUILD.bazel
++++ b/lld/BUILD.bazel
+@@ -108,8 +108,8 @@ cc_library(
+         "//llvm:TargetParser",
+         "//llvm:TransformUtils",
+         "//llvm:config",
+-        "@llvm_zlib//:zlib",
+-        "@llvm_zstd//:zstd",
++        # "@llvm_zlib//:zlib",
++        # "@llvm_zstd//:zstd",
+     ],
+ )
+ 
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index d14ea2957d4a..9e6d45af5094 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -299,14 +299,8 @@ cc_library(
+     deps = [
+         ":config",
+         ":Demangle",
+-        # We unconditionally depend on the custom LLVM zlib wrapper. This will
+-        # be an empty library unless zlib is enabled, in which case it will
+-        # both provide the necessary dependencies and configuration defines.
+-        "@llvm_zlib//:zlib",
+-        # We unconditionally depend on the custom LLVM zstd wrapper. This will
+-        # be an empty library unless zstd is enabled, in which case it will
+-        # both provide the necessary dependencies and configuration defines.
+-        "@llvm_zstd//:zstd",
++        # "@llvm_zlib//:zlib",
++        # "@llvm_zstd//:zstd",
+     ],
+ )
+ 
+@@ -2967,7 +2961,7 @@ cc_library(
+ # Flag documentation: https://bazel.build/extending/config
+ string_flag(
+     name = "pfm",
+-    build_setting_default = "external",
++    build_setting_default = "disable",
+     values = [
+         "disable",  # Don't include pfm at all
+         "external",  # Build pfm from source

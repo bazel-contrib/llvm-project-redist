@@ -1,3 +1,4 @@
 # Prepared LLVM source trees (post-overlay + patches) live here; each is its
 # own bazel workspace, not part of this repo's build graph.
 build
+temp_test_repos

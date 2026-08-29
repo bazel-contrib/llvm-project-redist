@@ -1,0 +1,36 @@
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index 589aac3ae155..3c6a8b42d4b1 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -813,6 +813,10 @@ llvm_target_intrinsics_list = [
+         "name": "S390",
+         "intrinsic_prefix": "s390",
+     },
++    {
++        "name": "SPIRV",
++        "intrinsic_prefix": "spv",
++    },
+     {
+         "name": "VE",
+         "intrinsic_prefix": "ve",
+@@ -2073,6 +2077,20 @@ llvm_target_lib_list = [lib for lib in [
+             ("-gen-disassembler", "lib/Target/Sparc/SparcGenDisassemblerTables.inc"),
+         ],
+     },
++    {
++        "name": "SPIRV",
++        "short_name": "SPIRV",
++        "tbl_outs": [
++            ("-gen-asm-writer", "lib/Target/SPIRV/SPIRVGenAsmWriter.inc"),
++            ("-gen-emitter", "lib/Target/SPIRV/SPIRVGenMCCodeEmitter.inc"),
++            ("-gen-global-isel", "lib/Target/SPIRV/SPIRVGenGlobalISel.inc"),
++            ("-gen-instr-info", "lib/Target/SPIRV/SPIRVGenInstrInfo.inc"),
++            ("-gen-register-bank", "lib/Target/SPIRV/SPIRVGenRegisterBank.inc"),
++            ("-gen-register-info", "lib/Target/SPIRV/SPIRVGenRegisterInfo.inc"),
++            ("-gen-searchable-tables", "lib/Target/SPIRV/SPIRVGenTables.inc"),
++            ("-gen-subtarget", "lib/Target/SPIRV/SPIRVGenSubtargetInfo.inc"),
++        ],
++    },
+     {
+         "name": "SystemZ",
+         "short_name": "SystemZ",

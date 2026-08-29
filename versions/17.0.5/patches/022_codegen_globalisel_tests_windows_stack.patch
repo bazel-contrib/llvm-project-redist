@@ -1,0 +1,19 @@
+diff --git a/llvm/unittests/BUILD.bazel b/llvm/unittests/BUILD.bazel
+--- a/llvm/unittests/BUILD.bazel
++++ b/llvm/unittests/BUILD.bazel
+@@ -168,6 +168,14 @@
+     copts = [
+         "$(STACK_FRAME_UNLIMITED)",
+     ],
++    # LegalizerInfoTest.RuleSets stack-overflows on Windows (SEH 0xC00000FD =
++    # STATUS_STACK_OVERFLOW) with the default 1 MB stack — the test
++    # constructs many large LegalizerInfo rule objects on the stack. Raise
++    # the linked executable's stack reservation to 8 MB on Windows.
++    linkopts = select({
++        "@platforms//os:windows": ["/STACK:8388608"],
++        "//conditions:default": [],
++    }),
+     deps = [
+         "//llvm:AllTargetsAsmParsers",
+         "//llvm:AllTargetsCodeGens",
+
