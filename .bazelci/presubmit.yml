@@ -8,10 +8,11 @@
 #     etc. under //tools:*).
 #   * generate_pipeline — bootstraps dynamic per-version upload via
 #     `tools/run_presubmit.py --pipeline`, which reads
-#     `versions/{X}/presubmit.yml` for every changed version and appends one
-#     Buildkite step per expanded task. Keeps the per-version 1:1 mirror with
-#     what bazel-central-registry runs after publishing, without inlining the
-#     full version list here.
+#     `versions/{X}/presubmit.yml` for every changed version (or the latest
+#     version when none changed, so tooling changes still get a real run) and
+#     appends one Buildkite step per expanded task. Keeps the per-version 1:1
+#     mirror with what bazel-central-registry runs after publishing, without
+#     inlining the full version list here.
 tasks:
   repo_tests:
     name: Repo tests (//...)

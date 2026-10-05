@@ -35,24 +35,6 @@ def changed_version_dirs(git_base_ref: str, repo_root: str) -> list[str]:
     return versions_from_git_diff_lines(out.stdout)
 
 
-def common_files_changed(git_base_ref: str, repo_root: str) -> bool:
-    """Return True if any files outside ``versions/`` changed vs *git_base_ref*."""
-    out = subprocess.run(
-        ["git", "diff", f"{git_base_ref}...HEAD", "--name-only", "--pretty=format:"],
-        cwd=repo_root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if out.returncode != 0:
-        return False
-    for line in out.stdout.splitlines():
-        line = line.strip()
-        if line and not line.startswith("versions/"):
-            return True
-    return False
-
-
 def latest_version_dir(versions_dir: str) -> str | None:
     """Return the latest ``versions/X`` directory name by sorting, or None."""
     p = Path(versions_dir)

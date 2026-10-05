@@ -1,6 +1,8 @@
 # Runs pre-commit checks, patch validation, and builds release archives for
-# any version directories changed in the PR or push. On pushes to main,
-# dispatches the release workflow for affected versions.
+# any version directories changed in the PR or push -- or, when none changed,
+# for the latest version, so tooling and workflow changes are always exercised
+# by a real build. On pushes to main, dispatches the release workflow for the
+# versions that actually changed.
 name: CI
 
 on:
@@ -84,8 +86,16 @@ jobs:
           fi
 
           if [ -z "$VERSIONS" ]; then
+            # Nothing under versions/ changed: build the latest version anyway
+            # so a tooling-only change is proven by a real build. (The release
+            # dispatch below keys on actual changes, so this never publishes.)
+            VERSIONS=$(ls -d versions/*/ | { grep -oP 'versions/\K[^/]+' || true; } | sort -V | tail -1)
+            echo "No version directories changed; building latest version ${VERSIONS}"
+          fi
+
+          if [ -z "$VERSIONS" ]; then
             echo "result=[]" >> "$GITHUB_OUTPUT"
-            echo "No version directories changed"
+            echo "No versions/ directories exist"
             exit 0
           fi
 
@@ -165,7 +175,8 @@ jobs:
 
   # Stable-name gate so branch protection can require the matrix build without
   # naming each dynamic matrix job. Passes when the matrix succeeds or is empty
-  # (no version changes), fails on any matrix failure or cancellation.
+  # (no versions/ directories exist at all), fails on any matrix failure or
+  # cancellation.
   build-complete:
     needs: [build]
     if: always()

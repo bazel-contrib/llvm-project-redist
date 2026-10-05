@@ -32,6 +32,7 @@ from types import ModuleType
 
 from tools.presubmit_logic import (
     changed_version_dirs,
+    latest_version_dir,
     read_version_string,
 )
 
@@ -199,8 +200,18 @@ def cmd_pipeline(
 
     # Always-on repo tests come from .bazelci/presubmit.yml expanded by
     # bazelci.py project_pipeline — this script only emits the dynamic
-    # per-version steps. When no versions/ dirs changed, we upload nothing;
-    # the repo_tests step from project_pipeline carries the build either way.
+    # per-version steps. A change that touches no versions/ directory still
+    # exercises the pipeline against the latest version, so edits to the
+    # tooling, the workflows or this script are proven by a real run rather
+    # than by nothing.
+    if not changed:
+        latest = latest_version_dir(str(rel_versions))
+        if latest is None:
+            print("No versions/ directories; nothing to upload.")
+            return 0
+        print(f"No changed versions/ directories; running the pipeline for the latest version ({latest}).")
+        changed = [latest]
+
     steps: list[dict[str, object]] = []
     for llvm_version in sorted(changed):
         version = read_version_string(llvm_version, str(rel_versions))
@@ -229,10 +240,7 @@ def cmd_pipeline(
             steps.append(bazelci_mod.create_step(label, commands, platform))
 
     if not steps:
-        # Nothing to upload — the repo_tests step from root presubmit.yml is
-        # independent and is already running. An empty upload would be a no-op;
-        # skip it to keep the build log clean.
-        print("No changed versions/ directories; nothing to upload.")
+        print("No tasks to upload.")
         return 0
 
     payload = {"steps": steps}
