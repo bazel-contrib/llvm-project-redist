@@ -159,14 +159,14 @@ class RenderPresubmitTest(unittest.TestCase):
                 "run_tests_gcc",
                 "run_tests_macos",
                 "run_tests_macos_arm64",
-                "run_tests_windows",
+                "run_tests_windows_clang_cl",
                 "run_tests_windows_msvc",
             },
         )
 
     def test_clang_cl_inherits_windows(self) -> None:
         out = render_presubmit(self.rc, ["debian10"], ["8.x"])
-        flags = out["tasks"]["run_tests_windows"]["test_flags"]
+        flags = out["tasks"]["run_tests_windows_clang_cl"]["test_flags"]
         # Inherited from `windows`:
         self.assertIn("--cxxopt=/std:c++17", flags)
         # Direct on `clang-cl`:

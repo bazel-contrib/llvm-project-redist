@@ -19,15 +19,23 @@ def _fake_bazelci() -> types.ModuleType:
             "docker-image": "gcr.io/bazel-public/debian10-java11",
             "queue": "default",
             "python": "python3",
+            "emoji-name": ":debian: Debian 10 Buster (OpenJDK 11, gcc 8.3.0)",
         },
         "ubuntu2004": {
             "docker-image": "gcr.io/bazel-public/ubuntu2004-java11",
             "queue": "default",
             "python": "python3",
+            "emoji-name": ":ubuntu: Ubuntu 20.04 LTS",
         },
         "macos_arm64": {
             "queue": "macos_arm64",
             "python": "python3",
+            "emoji-name": ":darwin: macOS arm64",
+        },
+        "windows": {
+            "queue": "windows",
+            "python": "python",
+            "emoji-name": ":windows: Windows",
         },
     }
 
@@ -194,6 +202,58 @@ class BuildStepCommandsTest(unittest.TestCase):
         step = mod.create_step("test", cmds, "macos_arm64")
         self.assertNotIn("plugins", step)
         self.assertEqual(step["agents"]["queue"], "macos_arm64")
+
+
+class StepLabelTest(unittest.TestCase):
+    """Step labels must read like bazel-central-registry's presubmit steps.
+
+    BCR's ``add_presubmit_jobs`` renders
+    ``:bazel:<ver> - <module>@<version> - <platform emoji-name> - <task name>``;
+    the dynamic steps here run the same ``presubmit.yml`` and should be
+    indistinguishable in the Buildkite UI.
+    """
+
+    def test_matches_bcr_format(self) -> None:
+        mod = _fake_bazelci()
+        task_config: dict[str, object] = {
+            "name": "bazel test //... (windows, msvc)",
+            "platform": "windows",
+            "bazel": "9.x",
+            "test_targets": ["//a"],
+        }
+        label = rp._step_label(mod, "17.0.5", "run_tests_windows_msvc", task_config, "windows")
+        self.assertEqual(
+            label,
+            ":bazel:9.x - llvm-project@17.0.5 - :windows: Windows - bazel test //... (windows, msvc)",
+        )
+
+    def test_uses_module_version_not_directory(self) -> None:
+        """The ``@version`` segment is the BCR module version from version.txt."""
+        mod = _fake_bazelci()
+        task_config: dict[str, object] = {"name": "t", "platform": "macos_arm64", "bazel": "8.x"}
+        label = rp._step_label(mod, "17.0.5.bcr.1", "run_tests_macos_arm64", task_config, "macos_arm64")
+        self.assertEqual(label, ":bazel:8.x - llvm-project@17.0.5.bcr.1 - :darwin: macOS arm64 - t")
+
+    def test_falls_back_to_task_key_without_name(self) -> None:
+        mod = _fake_bazelci()
+        task_config: dict[str, object] = {"platform": "debian10", "bazel": "7.x"}
+        label = rp._step_label(mod, "17.0.5", "run_tests", task_config, "debian10")
+        self.assertEqual(
+            label,
+            ":bazel:7.x - llvm-project@17.0.5 - :debian: Debian 10 Buster (OpenJDK 11, gcc 8.3.0) - run_tests",
+        )
+
+    def test_omits_bazel_prefix_without_version(self) -> None:
+        mod = _fake_bazelci()
+        task_config: dict[str, object] = {"name": "t", "platform": "debian10"}
+        label = rp._step_label(mod, "17.0.5", "run_tests", task_config, "debian10")
+        self.assertEqual(label, "llvm-project@17.0.5 - :debian: Debian 10 Buster (OpenJDK 11, gcc 8.3.0) - t")
+
+    def test_unknown_platform_falls_back_to_key(self) -> None:
+        mod = _fake_bazelci()
+        task_config: dict[str, object] = {"name": "t", "platform": "rockylinux8", "bazel": "9.x"}
+        label = rp._step_label(mod, "17.0.5", "run_tests", task_config, "rockylinux8")
+        self.assertEqual(label, ":bazel:9.x - llvm-project@17.0.5 - rockylinux8 - t")
 
 
 if __name__ == "__main__":

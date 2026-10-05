@@ -161,7 +161,7 @@ _TASK_SPEC: list[tuple[str, str, str, str]] = [
     ("run_tests_gcc", "bazel test //... (linux, gcc)", "${{ platform }}", "generic_gcc"),
     ("run_tests_macos", "bazel test //... (macOS x86_64, clang)", "macos", "generic_clang"),
     ("run_tests_macos_arm64", "bazel test //... (macOS arm64, clang)", "macos_arm64", "generic_clang"),
-    ("run_tests_windows", "bazel test //... (windows, clang-cl)", "windows", "clang-cl"),
+    ("run_tests_windows_clang_cl", "bazel test //... (windows, clang-cl)", "windows", "clang-cl"),
     ("run_tests_windows_msvc", "bazel test //... (windows, msvc)", "windows", "msvc"),
 ]
 

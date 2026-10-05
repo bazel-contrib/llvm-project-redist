@@ -37,6 +37,9 @@ from tools.presubmit_logic import (
 
 _BAZELCI_URL = "https://raw.githubusercontent.com/bazelbuild/continuous-integration/master/buildkite/bazelci.py"
 
+# Bazel module name this repo publishes to bazel-central-registry as.
+_MODULE_NAME = "llvm-project"
+
 
 def _load_bazelci() -> ModuleType:
     """Download ``bazelci.py`` and import it for pipeline step construction."""
@@ -67,6 +70,37 @@ def _is_windows_platform(platform: str) -> bool:
 def _original_task_name(expanded_name: str) -> str:
     """Strip ``_config_NN`` suffix added by ``bazelci.expand_task_config``."""
     return re.sub(r"_config_\d+$", "", expanded_name)
+
+
+def _step_label(
+    bazelci_mod: ModuleType,
+    version: str,
+    task_name: str,
+    task_config: dict[str, object],
+    platform: str,
+) -> str:
+    """Buildkite step label in the same shape bazel-central-registry uses.
+
+    Mirrors ``add_presubmit_jobs`` in the upstream ``bcr_presubmit.py``::
+
+        :bazel:9.x - llvm-project@17.0.5 - :windows: Windows - bazel test //... (windows, msvc)
+
+    so a step here reads identically to the one BCR runs for the same
+    ``presubmit.yml`` after publishing. The platform segment is bazelci's
+    ``emoji-name`` for the platform (falling back to the raw key if the
+    downloaded ``bazelci.py`` lacks one); the trailing segment is the task's
+    ``name:`` field, falling back to the task key like BCR does. The
+    ``:bazel:<version>`` prefix is dropped when the task has no ``bazel``
+    value, again matching BCR.
+    """
+    platforms = getattr(bazelci_mod, "PLATFORMS", {})
+    platform_label = platforms.get(platform, {}).get("emoji-name", platform)
+    display_name = task_config.get("name") or task_name
+    label = f"{_MODULE_NAME}@{version} - {platform_label} - {display_name}"
+    bazel_version = task_config.get("bazel", "")
+    if bazel_version:
+        label = f":bazel:{bazel_version} - {label}"
+    return label
 
 
 def _build_step_commands(
@@ -182,8 +216,7 @@ def cmd_pipeline(
         for expanded_name, task_config in config.get("tasks", {}).items():
             platform = bazelci_mod.get_platform_for_task(expanded_name, task_config)
             task_name = _original_task_name(expanded_name)
-            bazel_version = task_config.get("bazel", "")
-            label = f"{llvm_version} / {task_name} ({platform}, {bazel_version})"
+            label = _step_label(bazelci_mod, version, task_name, task_config, platform)
             commands = _build_step_commands(
                 bazelci_mod,
                 llvm_version,
