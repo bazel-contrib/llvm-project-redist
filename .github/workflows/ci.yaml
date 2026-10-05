@@ -2,7 +2,9 @@
 # any version directories changed in the PR or push -- or, when none changed,
 # for the latest version, so tooling and workflow changes are always exercised
 # by a real build. On pushes to main, dispatches the release workflow for the
-# versions that actually changed.
+# versions whose shipped content changed -- a presubmit.yml-only change (CI
+# runners, flags) is tested but never released, since nothing about the LLVM
+# source or its patches moved.
 name: CI
 
 on:
@@ -209,14 +211,17 @@ jobs:
           if [ -n "${{ inputs.llvm_version }}" ]; then
             VERSIONS="${{ inputs.llvm_version }}"
           else
+            # presubmit.yml only configures CI; it is not part of the released
+            # archive, so a change to it alone must not cut a new release.
             VERSIONS=$(git diff --name-only HEAD~1 -- 'versions/' \
+              | { grep -v '/presubmit\.yml$' || true; } \
               | { grep -oP 'versions/\K[^/]+(?=/)' || true; } \
               | sort -uV \
               | tail -1)
           fi
 
           if [ -z "$VERSIONS" ]; then
-            echo "No version directories changed"
+            echo "No release-affecting changes under versions/"
             echo "versions=" >> "$GITHUB_OUTPUT"
             exit 0
           fi

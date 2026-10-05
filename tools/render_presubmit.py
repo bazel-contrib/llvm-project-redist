@@ -255,8 +255,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--linux-platforms",
-        default="debian10,ubuntu2004",
-        help="Comma-separated linux platform values for the matrix (default: debian10,ubuntu2004)",
+        default="debian10,ubuntu2404",
+        help="Comma-separated linux platform values for the matrix (default: debian10,ubuntu2404)",
     )
     parser.add_argument(
         "--bazel-versions",

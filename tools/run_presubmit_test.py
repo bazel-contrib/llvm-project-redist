@@ -21,11 +21,11 @@ def _fake_bazelci() -> types.ModuleType:
             "python": "python3",
             "emoji-name": ":debian: Debian 10 Buster (OpenJDK 11, gcc 8.3.0)",
         },
-        "ubuntu2004": {
-            "docker-image": "gcr.io/bazel-public/ubuntu2004-java11",
+        "ubuntu2404": {
+            "docker-image": "gcr.io/bazel-public/ubuntu2404",
             "queue": "default",
             "python": "python3",
-            "emoji-name": ":ubuntu: Ubuntu 20.04 LTS",
+            "emoji-name": ":ubuntu: Ubuntu 24.04 LTS",
         },
         "macos_arm64": {
             "queue": "macos_arm64",

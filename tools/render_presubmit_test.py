@@ -187,8 +187,8 @@ class RenderPresubmitTest(unittest.TestCase):
                 self.assertIn("--force_pic", task["test_flags"])
 
     def test_matrix_uses_provided_values(self) -> None:
-        out = render_presubmit(self.rc, ["debian10", "ubuntu2004"], ["7.x", "9.x"])
-        self.assertEqual(out["matrix"]["platform"], ["debian10", "ubuntu2004"])
+        out = render_presubmit(self.rc, ["debian10", "ubuntu2404"], ["7.x", "9.x"])
+        self.assertEqual(out["matrix"]["platform"], ["debian10", "ubuntu2404"])
         self.assertEqual(out["matrix"]["bazel"], ["7.x", "9.x"])
 
 

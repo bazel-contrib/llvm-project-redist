@@ -16,7 +16,7 @@
 tasks:
   repo_tests:
     name: Repo tests (//...)
-    platform: ubuntu2004
+    platform: ubuntu2404
     bazel: 9.x
     test_targets:
       - '//...'

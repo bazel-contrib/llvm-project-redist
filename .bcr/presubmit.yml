@@ -1,7 +1,7 @@
 matrix:
   platform:
   - debian10
-  - ubuntu2004
+  - ubuntu2404
   - macos_arm64
   - windows
   bazel:
