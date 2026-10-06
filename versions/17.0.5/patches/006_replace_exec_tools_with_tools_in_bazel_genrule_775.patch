@@ -1,0 +1,14 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/3b54337be54107a5f196bb98dfc858b10ec35b8a
+diff --git a/clang-tools-extra/clang-tidy/BUILD.bazel b/clang-tools-extra/clang-tidy/BUILD.bazel
+index be6e1514a9af..82bafc3ceb5f 100644
+--- a/clang-tools-extra/clang-tidy/BUILD.bazel
++++ b/clang-tools-extra/clang-tidy/BUILD.bazel
+@@ -57,7 +57,7 @@ genrule(
+     srcs = ["misc/ConfusableTable/confusables.txt"],
+     outs = ["Confusables.inc"],
+     cmd = "$(location :confusable_table_builder) $(SRCS) $(OUTS)",
+-    exec_tools = [":confusable_table_builder"],
++    tools = [":confusable_table_builder"],
+     visibility = ["//visibility:private"],
+ )
+ 

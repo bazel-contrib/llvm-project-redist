@@ -1,0 +1,36 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/a91380793344c84f3bae3a5425a1fcd1b63dd0a4
+diff --git a/llvm/utils/lit/lit/util.py b/llvm/utils/lit/lit/util.py
+--- a/llvm/utils/lit/lit/util.py
++++ b/llvm/utils/lit/lit/util.py
+@@ -225,7 +225,12 @@
+     # Get suffixes to search.
+     # On Cygwin, 'PATHEXT' may exist but it should not be used.
+     if os.pathsep == ";":
+-        pathext = os.environ.get("PATHEXT", "").split(";")
++        # If PATHEXT was stripped from the environment (e.g. when
++        # running with a hermetic build system like Bazel) then
++        # use a sane fallback so binaries can still be located.
++        fallback = ".COM;.EXE;.BAT;.CMD"
++
++        pathext = os.environ.get("PATHEXT", fallback).split(";")
+     else:
+         pathext = [""]
+ 
+diff --git a/llvm/utils/lit/tests/use-llvm-tool.py b/llvm/utils/lit/tests/use-llvm-tool.py
+--- a/llvm/utils/lit/tests/use-llvm-tool.py
++++ b/llvm/utils/lit/tests/use-llvm-tool.py
+@@ -33,6 +33,14 @@
+ # CHECK-NEXT: note: using case9: {{.*}}search2{{[\\/]}}case9
+ # CHECK-NEXT: note: using case10: {{.*}}path{{[\\/]}}case10
+ 
++## Show that tools are still found when PATHEXT is unset, as can happen with
++## hermetic build systems (like Bazel) that strip environment variables.
++## Inputs provide both "case2" and "case2.exe", so match the extension
++## explicitly: without a fallback, lit finds the extension-less "case2".
++# RUN: %if system-windows %{ env -u PATHEXT %{lit} %{inputs}/use-llvm-tool 2>&1 | \
++# RUN:   FileCheck %s --check-prefix=NO-PATHEXT %}
++# NO-PATHEXT: note: using case2: {{.*}}build{{[\\/]}}case2.exe
++
+ ## Test that if required is True, lit errors if the tool is not found.
+ # RUN: not %{lit} %{inputs}/use-llvm-tool-required 2>&1 | \
+ # RUN:   FileCheck %s --check-prefix=ERROR

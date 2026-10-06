@@ -1,0 +1,143 @@
+# This release has no libc/src/__support/OSUtil/windows at all, so this gate
+# is permanent for its major line. Upstream started adding Windows selects to the libc
+# overlay in 4bcf1e61eb84 (2025-03-13), i.e. LLVM 21, but carries no Windows
+# gate and no Windows CI; re-check per release whether libc builds there.
+diff --git a/libc/libc_build_rules.bzl b/libc/libc_build_rules.bzl
+--- a/libc/libc_build_rules.bzl
++++ b/libc/libc_build_rules.bzl
+@@ -11,15 +11,47 @@ load(":platforms.bzl", "PLATFORM_CPU_ARM64", "PLATFORM_CPU_X86_64")
+ LIBC_ROOT_TARGET = ":libc_root"
+ INTERNAL_SUFFIX = ".__internal__"
+ 
+-def _libc_library(name, copts = None, **kwargs):
++# LLVM libc has no Windows support to build. The Bazel overlay only ever
++# selects between two operating systems -- `@platforms//os:macos` and a
++# `//conditions:default` that means Linux (libc/BUILD.bazel:833 onwards) --
++# and the sources it defaults to are Linux-only in fact as well as in name:
++# src/__support/OSUtil and src/__support/threads each carry a `linux/`
++# directory and no `windows/` one. Building it on Windows with clang-cl, the
++# compiler CMake's libc/config/windows/README.md documents, gets as far as
++#   signal_to_string.cpp: error: use of undeclared identifier 'SIGRTMIN'
++#   file.h: error: unknown type name 'Mutex'
++#   new.h: error: no member named 'aligned_alloc' in the global namespace
++#   memory_check_utils.h: error: no member named 'quick_exit' in namespace
++#                                '__llvm_libc'
++# -- missing platform code, not a compiler disagreement. cl.exe additionally
++# cannot compile libc at all (src/__support/macros/optimization.h #errors with
++# "Unhandled compiler" unless LIBC_COMPILER_IS_CLANG or LIBC_COMPILER_IS_GCC
++# is set, and src/__support/endian.h #errors without a predefined
++# __BYTE_ORDER__), but that is the narrower of the two problems.
++#
++# So gate on the OS. An earlier version of this patch gated on
++# `@rules_cc//cc/compiler:msvc-cl` instead, on the theory that cl.exe was the
++# whole story and that the clang-cl job would keep building libc. It did not
++# even do that reliably: under Bazel 7 the `USE_CLANG_CL=1` toolchain still
++# reports compiler = "msvc-cl" so the select matched, while rules_cc 0.2.25
++# reports "clang-cl" (windows_cc_configure.bzl:956) so on Bazel 8+ it stopped
++# matching and the clang-cl job started building libc -- and failing.
++LIBC_INCOMPATIBLE_WITH_WINDOWS = select({
++    "@platforms//os:windows": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
++def _libc_library(name, copts = None, target_compatible_with = None, **kwargs):
+     """Internal macro to serve as a base for all other libc library rules.
+ 
+     Args:
+       name: Target name.
+       copts: The special compiler options for the target.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: All other attributes relevant for the cc_library rule.
+     """
+     copts = copts or []
++    target_compatible_with = target_compatible_with or []
+ 
+     # We want all libc sources to be compiled with "hidden" visibility.
+     # The public symbols will be given "default" visibility explicitly.
+@@ -29,6 +61,8 @@ def _libc_library(name, copts = None, **kwargs):
+         name = name,
+         copts = copts,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_WINDOWS,
+         **kwargs
+     )
+ 
+@@ -44,6 +78,7 @@ def libc_function(
+         deps = None,
+         copts = None,
+         local_defines = None,
++        target_compatible_with = None,
+         **kwargs):
+     """Add target for a libc function.
+ 
+@@ -63,9 +98,11 @@ def libc_function(
+       local_defines: The preprocessor defines which will be prepended with -D
+                      and passed to the compile command of this target but not
+                      its deps.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: Other attributes relevant for a cc_library. For example, deps.
+     """
+     deps = deps or []
++    target_compatible_with = target_compatible_with or []
+ 
+     # We use the explicit equals pattern here because append and += mutate the
+     # original list, where this creates a new list and stores it in deps.
+@@ -82,6 +119,8 @@ def libc_function(
+         deps = deps,
+         copts = copts,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_WINDOWS,
+         **kwargs
+     )
+ 
+@@ -98,6 +137,7 @@ def libc_function(
+         deps = deps,
+         copts = copts,
+         local_defines = local_defines,
++        target_compatible_with = target_compatible_with,
+         **kwargs
+     )
+ 
+diff --git a/libc/test/libc_test_rules.bzl b/libc/test/libc_test_rules.bzl
+--- a/libc/test/libc_test_rules.bzl
++++ b/libc/test/libc_test_rules.bzl
+@@ -13,9 +13,19 @@ When performing tests we make sure to always use the internal version.
+ """
+ 
+ load("@rules_cc//cc:cc_test.bzl", "cc_test")
+-load("//libc:libc_build_rules.bzl", "INTERNAL_SUFFIX")
++load(
++    "//libc:libc_build_rules.bzl",
++    "INTERNAL_SUFFIX",
++    "LIBC_INCOMPATIBLE_WITH_WINDOWS",
++)
+ 
+-def libc_test(name, srcs, libc_function_deps, deps = [], **kwargs):
++def libc_test(
++        name,
++        srcs,
++        libc_function_deps,
++        deps = [],
++        target_compatible_with = [],
++        **kwargs):
+     """Add target for a libc test.
+ 
+     Args:
+@@ -23,6 +33,7 @@ def libc_test(name, srcs, libc_function_deps, deps = [], **kwargs):
+       srcs: List of sources for the test.
+       libc_function_deps: List of libc_function targets used by this test.
+       deps: The list of other libraries to be linked in to the test target.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: Attributes relevant for a cc_test. For example, name, srcs.
+     """
+     all_function_deps = libc_function_deps + ["//libc:errno"]
+@@ -35,5 +46,7 @@ def libc_test(name, srcs, libc_function_deps, deps = [], **kwargs):
+         ] + deps,
+         features = ["-link_llvmlibc"],  # Do not link libllvmlibc.a
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with +
++                                 LIBC_INCOMPATIBLE_WITH_WINDOWS,
+         **kwargs
+     )

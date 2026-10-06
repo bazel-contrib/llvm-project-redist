@@ -1,0 +1,48 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/3065cf238ca3fddd74cba0bd660afe5fd4e7da03
+diff --git a/clang/BUILD.bazel b/clang/BUILD.bazel
+--- a/clang/BUILD.bazel
++++ b/clang/BUILD.bazel
+@@ -509,19 +509,6 @@ py_binary(
+     main = "utils/bundle_resources.py",
+ )
+ 
+-# A hacky library to expose some internal headers of the `basic` library to its
+-# own implementation source files using a stripped include prefix rather than
+-# file-relative-inclusion. This is inherently non-modular as these headers will
+-# be repeated in the sources below for file-relative-inclusion.
+-cc_library(
+-    name = "basic_internal_headers",
+-    hdrs = glob([
+-        "lib/Basic/*.h",
+-    ]),
+-    features = ["-header_modules"],
+-    strip_include_prefix = "lib/Basic",
+-)
+-
+ cc_library(
+     name = "basic",
+     srcs = [
+@@ -540,6 +527,7 @@ cc_library(
+     copts = [
+         "-DHAVE_VCS_VERSION_INC",
+         "$(STACK_FRAME_UNLIMITED)",
++        "-I$(WORKSPACE_ROOT)/clang/lib/Basic",
+     ],
+     includes = ["include"],
+     textual_hdrs = [
+@@ -571,6 +559,7 @@ cc_library(
+     ] + glob([
+         "include/clang/Basic/*.def",
+     ]),
++    toolchains = [":workspace_root"],
+     deps = [
+         ":basic_arm_cde_gen",
+         ":basic_arm_fp16_inc_gen",
+@@ -584,7 +573,6 @@ cc_library(
+         ":basic_arm_sve_builtins_gen",
+         ":basic_arm_sve_typeflags_gen",
+         ":basic_attr_gen",
+-        ":basic_internal_headers",
+         ":basic_riscv_sifive_vector_builtins_gen",
+         ":basic_riscv_vector_builtin_cg_gen",
+         ":basic_riscv_vector_builtins_gen",

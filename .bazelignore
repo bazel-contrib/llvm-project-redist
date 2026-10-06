@@ -2,3 +2,4 @@
 # own bazel workspace, not part of this repo's build graph.
 build
 temp_test_repos
+.git

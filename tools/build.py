@@ -322,15 +322,40 @@ def apply_patches(src_dir: Path, patch_dir: Path) -> int:
     return len(patches)
 
 
+# rules_cc must be floored at 0.2.25. Earlier releases cannot configure a
+# clang-cl toolchain at all: the `USE_CLANG_CL=1` branch of `_get_msvc_vars`
+# in cc/private/toolchain/windows_cc_configure.bzl populates only CL/ML/LINK/
+# LIB, while the `msvc_vars` dict it then builds reads `build_tools["DUMPBIN"]`
+# unconditionally, so fetching @local_config_cc dies with
+#   Error: key "DUMPBIN" not found in dictionary
+# and every C/C++ target fails to analyze. Verified broken in 0.2.13, 0.2.17
+# and 0.2.22; fixed in 0.2.25, which adds
+#   build_tools["DUMPBIN"] = find_msvc_tool(repository_ctx, vc_path, "dumpbin.exe", target_arch)
+# See docs/rules_cc-use-clang-cl-dumpbin-keyerror.md. Since these versions are
+# only a floor under MVS, a consumer can still resolve something newer, but
+# nothing older -- which is what the run_tests_windows_clang_cl task needs.
+#
+# apple_support and bazel_skylib are floored at what rules_cc 0.2.25 already
+# drags in transitively (apple_support via protobuf/re2/rules_apple). MVS
+# resolves those versions either way; declaring them keeps
+# --check_direct_dependencies quiet instead of warning on every invocation.
 _BASELINE_MODULE_BAZEL = """\
 module(name = "llvm-project", version = "{version}")
 
-bazel_dep(name = "apple_support", version = "1.24.1", repo_name = "build_bazel_apple_support")
-bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "apple_support", version = "2.8.0", repo_name = "build_bazel_apple_support")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.11")
+bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_python", version = "1.9.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
+
+# Third-party libraries the overlay reaches as @llvm_zlib, @llvm_zstd, @mpfr
+# and @pfm, pinned to the versions upstream main uses.
+bazel_dep(name = "zlib-ng", version = "2.3.3", repo_name = "llvm_zlib")
+bazel_dep(name = "zstd", version = "1.5.7.bcr.1", repo_name = "llvm_zstd")
+bazel_dep(name = "gmp", version = "6.3.0.bcr.1")
+bazel_dep(name = "mpfr", version = "4.2.2.bcr.1")
+bazel_dep(name = "libpfm", version = "4.13.0", repo_name = "pfm")
 """
 
 

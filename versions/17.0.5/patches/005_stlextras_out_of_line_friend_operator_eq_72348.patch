@@ -1,0 +1,48 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/77f2ccbaac5e05e14827247ea8f6cc0f9d214390
+# (ReleaseNotes.rst hunk omitted: this release's notes are a different file.)
+diff --git a/llvm/include/llvm/ADT/STLExtras.h b/llvm/include/llvm/ADT/STLExtras.h
+--- a/llvm/include/llvm/ADT/STLExtras.h
++++ b/llvm/include/llvm/ADT/STLExtras.h
+@@ -1290,18 +1290,6 @@ public:
+     return (*this)[size() - 1];
+   }
+ 
+-  /// Compare this range with another.
+-  template <typename OtherT>
+-  friend bool operator==(const indexed_accessor_range_base &lhs,
+-                         const OtherT &rhs) {
+-    return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+-  }
+-  template <typename OtherT>
+-  friend bool operator!=(const indexed_accessor_range_base &lhs,
+-                         const OtherT &rhs) {
+-    return !(lhs == rhs);
+-  }
+-
+   /// Return the size of this range.
+   size_t size() const { return count; }
+ 
+@@ -1364,6 +1352,23 @@ protected:
+   /// The size from the owning range.
+   ptrdiff_t count;
+ };
++/// Compare this range with another.
++/// FIXME: Make me a member function instead of friend when it works in C++20.
++template <typename OtherT, typename DerivedT, typename BaseT, typename T,
++          typename PointerT, typename ReferenceT>
++bool operator==(const indexed_accessor_range_base<DerivedT, BaseT, T, PointerT,
++                                                  ReferenceT> &lhs,
++                const OtherT &rhs) {
++  return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
++}
++
++template <typename OtherT, typename DerivedT, typename BaseT, typename T,
++          typename PointerT, typename ReferenceT>
++bool operator!=(const indexed_accessor_range_base<DerivedT, BaseT, T, PointerT,
++                                                  ReferenceT> &lhs,
++                const OtherT &rhs) {
++  return !(lhs == rhs);
++}
+ } // end namespace detail
+ 
+ /// This class provides an implementation of a range of

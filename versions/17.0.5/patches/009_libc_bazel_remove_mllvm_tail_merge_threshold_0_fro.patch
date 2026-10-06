@@ -1,0 +1,13 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/2f48765b45ba87d780caf7d058d416b5dda32d7e
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+index a1cf15188e6a..64a56707a92f 100644
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -2082,7 +2082,6 @@ libc_function(
+     name = "memcpy",
+     srcs = ["src/string/memcpy.cpp"],
+     hdrs = ["src/string/memcpy.h"],
+-    copts = ["-mllvm --tail-merge-threshold=0"],
+     features = no_sanitize_features,
+     weak = True,
+     deps = [
