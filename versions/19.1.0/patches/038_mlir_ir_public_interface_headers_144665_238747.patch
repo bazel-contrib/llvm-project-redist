@@ -1,0 +1,47 @@
+# Local adaptation (surrounding lines in the `IR` target differ at this
+# release) of two upstream one-line moves plus one dep from a third commit:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/5a9cc93a2058e2c26d766f7be6aee63e928bf825
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/c44e0095624a153e11943ace485c3b54be7c491d
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/eb420fd669523fa4d8875d43b76326048c52698b
+#
+# In this release `//mlir:IR` lists `include/mlir/Bytecode/*.h` and
+# `include/mlir/Interfaces/CallInterfaces.h` under `srcs`, which makes them
+# private headers of the IR module under layering_check. The toy examples and
+# the Transform dialect/extensions include them while depending only on
+# `:IR`, so clang (seen on the macOS tasks) rejects the include with
+# "use of private header from outside its module" (-Wprivate-header).
+# Upstream moved CallInterfaces.h back to `hdrs` in #144665 and the Bytecode
+# headers in #238747; this mirrors both. `SideEffectInterfaces.h` stays
+# private upstream, so `TransformDebugExtension` gets the direct
+# `:SideEffectInterfaces` dep that #161126 added for the same diagnostic.
+diff --git a/mlir/BUILD.bazel b/mlir/BUILD.bazel
+index bc6dbd055..396a59ef3 100644
+--- a/mlir/BUILD.bazel
++++ b/mlir/BUILD.bazel
+@@ -339,16 +339,16 @@ cc_library(
+         "lib/IR/*.h",
+         "lib/IR/PDL/*.cpp",
+         "lib/Bytecode/Writer/*.h",
+-        "include/mlir/Bytecode/*.h",
+     ]) + [
+         "include/mlir/IR/PDLPatternMatch.h.inc",
+-        "include/mlir/Interfaces/CallInterfaces.h",
+         "include/mlir/Interfaces/DataLayoutInterfaces.h",
+         "include/mlir/Interfaces/SideEffectInterfaces.h",
+     ],
+     hdrs = glob([
+         "include/mlir/IR/*.h",
++        "include/mlir/Bytecode/*.h",
+     ]) + [
++        "include/mlir/Interfaces/CallInterfaces.h",
+         "include/mlir/Interfaces/FoldInterfaces.h",
+     ],
+     includes = ["include"],
+@@ -12362,6 +12362,7 @@ cc_library(
+     hdrs = glob(["include/mlir/Dialect/Transform/DebugExtension/*.h"]),
+     deps = [
+         ":IR",
++        ":SideEffectInterfaces",
+         ":Support",
+         ":TransformDebugExtensionOpsIncGen",
+         ":TransformDialect",

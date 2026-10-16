@@ -1,0 +1,18 @@
+# No upstream commit: MSVC's <optional> implements `optional<uint64_t> < int64_t`
+# as a plain `uint64_t < int64_t` comparison inside the header, which cl.exe
+# reports as C4018 (signed/unsigned mismatch) at the instantiation site and the
+# msvc config's /WX turns into an error. clang and gcc suppress the warning
+# because it originates in a system header, so no upstream build sees it.
+# Candidate for an upstream PR; upstream main still has the same comparison.
+diff --git a/mlir/lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp b/mlir/lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp
+--- a/mlir/lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp
++++ b/mlir/lib/Dialect/SparseTensor/IR/SparseTensorDialect.cpp
+@@ -1501,7 +1501,7 @@
+   if (!constantIndex)
+     return Speculation::NotSpeculatable;
+ 
+-  assert(constantIndex <
++  assert(static_cast<int64_t>(*constantIndex) <
+          cast<RankedTensorType>(getSource().getType()).getRank());
+   return Speculation::Speculatable;
+ }

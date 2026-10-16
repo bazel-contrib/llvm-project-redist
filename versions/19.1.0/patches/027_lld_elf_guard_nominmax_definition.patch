@@ -1,0 +1,20 @@
+# No upstream commit yet (proposed as a PR from the lld-elf-nominmax-guard
+# branch): Bazel's MSVC toolchain passes /DNOMINMAX on every command line, so
+# the unconditional `#define NOMINMAX` that 3594769f202e added ahead of
+# <zlib.h> is a macro redefinition under cl.exe (C4005), which the msvc
+# config's /WX turns into an error. CMake never defines NOMINMAX globally, so
+# no upstream build sees it. Guard the definition the way
+# llvm/Support/Windows/WindowsSupport.h does.
+diff --git a/lld/ELF/OutputSections.cpp b/lld/ELF/OutputSections.cpp
+--- a/lld/ELF/OutputSections.cpp
++++ b/lld/ELF/OutputSections.cpp
+@@ -24,7 +24,9 @@
+ #include "llvm/Support/TimeProfiler.h"
+ #if LLVM_ENABLE_ZLIB
+ // Avoid introducing max as a macro from Windows headers.
++#ifndef NOMINMAX
+ #define NOMINMAX
++#endif
+ #include <zlib.h>
+ #endif
+ #if LLVM_ENABLE_ZSTD

@@ -1,0 +1,54 @@
+# Local equivalent (same change, this release's Host target has different
+# surrounding context) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/7b72b5fde414fd7d41653a07ddb87f80038009aa
+#
+# "[bazel] Fix building lldb without libedit" (#184535). `enable_libedit`
+# defaults to false and `:libedit_enabled` only turns on by flag or on macOS,
+# yet Editline.cpp was globbed into Host unconditionally, so a Linux host
+# without libedit-dev fails with "histedit.h: No such file or directory" on
+# the bazelci images. Mirror lldb/source/Host/CMakeLists.txt: compile
+# Editline.cpp and export Editline.h only when libedit is enabled.
+diff --git a/lldb/BUILD.bazel b/lldb/BUILD.bazel
+index 07b9dbe33..3a0726275 100644
+--- a/lldb/BUILD.bazel
++++ b/lldb/BUILD.bazel
+@@ -522,9 +522,15 @@ objc_library(
+ 
+ cc_library(
+     name = "Host",
+-    srcs = glob([
+-        "source/Host/common/**/*.cpp",
+-    ]) + select({
++    srcs = glob(
++        [
++            "source/Host/common/**/*.cpp",
++        ],
++        exclude = ["source/Host/common/Editline.cpp"],
++    ) + select({
++        ":libedit_enabled": ["source/Host/common/Editline.cpp"],
++        "//conditions:default": [],
++    }) + select({
+         "@platforms//os:linux": glob(
+             [
+                 "source/Host/posix/**/*.cpp",
+@@ -539,10 +545,16 @@ cc_library(
+             ],
+         ),
+     }),
+-    hdrs = [":ConfigHeader"] + glob([
+-        "include/lldb/Host/*.h",
+-        "include/lldb/Host/common/*.h",
+-    ]) + select({
++    hdrs = [":ConfigHeader"] + glob(
++        [
++            "include/lldb/Host/*.h",
++            "include/lldb/Host/common/*.h",
++        ],
++        exclude = ["include/lldb/Host/Editline.h"],
++    ) + select({
++        ":libedit_enabled": ["include/lldb/Host/Editline.h"],
++        "//conditions:default": [],
++    }) + select({
+         "@platforms//os:macos": glob([
+             "include/lldb/Host/macosx/*.h",
+             "include/lldb/Host/posix/*.h",

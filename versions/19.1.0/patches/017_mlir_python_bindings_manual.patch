@@ -1,0 +1,102 @@
+# Mark MLIR's Python binding targets manual, as they were through LLVM 18.
+#
+# Upstream 914a00a9c94b (#98398, 2024-07) dropped the `manual` tags because the
+# WORKSPACE provides @pybind11 via http_archive. The generated MODULE.bazel of
+# this redistribution does not, so without the tags `bazel test //...` fails to
+# analyze eleven targets with "No repository visible as '@pybind11'". Nothing in
+# CI needs them: lit runs with MLIR_ENABLE_BINDINGS_PYTHON=0. Upstream has
+# since moved the bindings to nanobind from the BCR and removed the last
+# pybind archive in 8cd0fb68a17e (#191269); the alternative here
+# would be a `pybind11_bazel` module dependency, which is a decision about the
+# published module graph rather than about this version.
+diff --git a/mlir/BUILD.bazel b/mlir/BUILD.bazel
+--- a/mlir/BUILD.bazel
++++ b/mlir/BUILD.bazel
+@@ -935,6 +935,7 @@ cc_library(
+         "include",
+         "lib/Bindings/Python",
+     ],
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     textual_hdrs = [":MLIRBindingsPythonHeaderFiles"],
+     deps = [
+         ":CAPIIRHeaders",
+@@ -950,6 +951,7 @@ cc_library(
+         "include",
+         "lib/Bindings/Python",
+     ],
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     textual_hdrs = [":MLIRBindingsPythonHeaderFiles"],
+     deps = [
+         ":CAPIIR",
+@@ -989,6 +991,7 @@ cc_library(
+     srcs = [":MLIRBindingsPythonSourceFiles"],
+     copts = PYBIND11_COPTS,
+     features = PYBIND11_FEATURES,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIAsync",
+         ":CAPIDebug",
+@@ -1008,6 +1011,7 @@ cc_library(
+     srcs = [":MLIRBindingsPythonSourceFiles"],
+     copts = PYBIND11_COPTS,
+     features = PYBIND11_FEATURES,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIAsyncHeaders",
+         ":CAPIDebugHeaders",
+@@ -1043,6 +1047,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":MLIRBindingsPythonCore",
+         ":MLIRBindingsPythonHeadersAndDeps",
+@@ -1056,6 +1061,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIIR",
+         ":CAPILinalg",
+@@ -1070,6 +1076,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIIR",
+         ":CAPILLVM",
+@@ -1085,6 +1092,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIIR",
+         ":CAPIQuant",
+@@ -1100,6 +1108,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIIR",
+         ":CAPISparseTensor",
+@@ -1116,6 +1125,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPIExecutionEngine",
+         ":MLIRBindingsPythonHeadersAndDeps",
+@@ -1132,6 +1142,7 @@ cc_binary(
+     features = PYBIND11_FEATURES,
+     linkshared = 1,
+     linkstatic = 0,
++    tags = ["manual"],  # Needs @pybind11, which the module does not provide.
+     deps = [
+         ":CAPILinalg",
+         ":MLIRBindingsPythonHeadersAndDeps",

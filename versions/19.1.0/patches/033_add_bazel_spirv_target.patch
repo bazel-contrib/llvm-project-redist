@@ -1,0 +1,65 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/68fdc09eb528ac3b02605333054b4121ce47ec26
+#
+# Adapted: the `-gen-global-isel-combiner -combiners=SPIRVPreLegalizerCombiner`
+# tbl_out is dropped. That combiner does not exist in this release (see the
+# tablegen() list in llvm/lib/Target/SPIRV/CMakeLists.txt); with it, tblgen
+# fails with "Could not find SPIRVPreLegalizerCombiner". Same adaptation as
+# 17.x/18.1.0's copy of this patch.
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index d7d3aa019..3b0a008c9 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2180,6 +2180,20 @@ llvm_target_lib_list = [lib for lib in [
+             ("-gen-searchable-tables", "lib/Target/Sparc/SparcGenSearchableTables.inc"),
+         ],
+     },
++    {
++        "name": "SPIRV",
++        "short_name": "SPIRV",
++        "tbl_outs": [
++            ("-gen-asm-writer", "lib/Target/SPIRV/SPIRVGenAsmWriter.inc"),
++            ("-gen-emitter", "lib/Target/SPIRV/SPIRVGenMCCodeEmitter.inc"),
++            ("-gen-global-isel", "lib/Target/SPIRV/SPIRVGenGlobalISel.inc"),
++            ("-gen-instr-info", "lib/Target/SPIRV/SPIRVGenInstrInfo.inc"),
++            ("-gen-register-bank", "lib/Target/SPIRV/SPIRVGenRegisterBank.inc"),
++            ("-gen-register-info", "lib/Target/SPIRV/SPIRVGenRegisterInfo.inc"),
++            ("-gen-searchable-tables", "lib/Target/SPIRV/SPIRVGenTables.inc"),
++            ("-gen-subtarget", "lib/Target/SPIRV/SPIRVGenSubtargetInfo.inc"),
++        ],
++    },
+     {
+         "name": "SystemZ",
+         "short_name": "SystemZ",
+@@ -2512,6 +2527,7 @@ gentbl(
+             ":TransformUtils",
+             ":Vectorize",
+             ":config",
++            ":" + target["name"] + "Analysis",
+             ":" + target["name"] + "CommonTableGen",
+             ":" + target["name"] + "Info",
+             ":" + target["name"] + "UtilsAndDesc",
+@@ -2616,6 +2632,24 @@ gentbl(
+             ":" + target["name"] + "UtilsAndDesc",
+         ],
+     )],
++    [cc_library(
++        name = target["name"] + "Analysis",
++        srcs = glob(
++            [
++                "lib/Target/" + target["name"] + "/Analysis/*.cpp",
++                "lib/Target/" + target["name"] + "/Analysis/*.h",
++            ],
++            allow_empty = True,
++        ),
++        copts = llvm_copts,
++        features = ["-layering_check"],
++        deps = [
++            ":Analysis",
++            ":Core",
++            ":Support",
++            ":TransformUtils",
++        ],
++    )],
+ ] for target in llvm_target_lib_list]
+ 
+ cc_library(
