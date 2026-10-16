@@ -1,0 +1,19 @@
+# Remaining hunk (mempcpy) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/2f48765b45ba87d780caf7d058d416b5dda32d7e
+#
+# 002 carries the other hunk of that commit. mempcpy was added to the overlay
+# in 1f6427a2d51f (#75383, 18.x) with the same clang-only copts, which gcc
+# rejects outright ("unrecognized command-line option '-mllvm'"), so the
+# target cannot be built with the generic_gcc config at all.
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+index 779ad295b..428563245 100644
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -2320,7 +2320,6 @@ libc_function(
+     name = "mempcpy",
+     srcs = ["src/string/mempcpy.cpp"],
+     hdrs = ["src/string/mempcpy.h"],
+-    copts = ["-mllvm --tail-merge-threshold=0"],
+     features = no_sanitize_features,
+     weak = True,
+     deps = [

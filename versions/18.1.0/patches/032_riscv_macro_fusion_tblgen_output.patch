@@ -1,0 +1,13 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/f9dc0b6c8a6804a78e88c44018d6148bdf4c64c3
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index c3efe178d6ed6..28f33bca3be00 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2131,6 +2131,7 @@ llvm_target_lib_list = [lib for lib in [
+             ("-gen-dag-isel", "lib/Target/RISCV/RISCVGenDAGISel.inc"),
+             ("-gen-disassembler", "lib/Target/RISCV/RISCVGenDisassemblerTables.inc"),
+             ("-gen-instr-info", "lib/Target/RISCV/RISCVGenInstrInfo.inc"),
++            ("-gen-macro-fusion-pred", "lib/Target/RISCV/RISCVGenMacroFusion.inc"),
+             ("-gen-emitter", "lib/Target/RISCV/RISCVGenMCCodeEmitter.inc"),
+             ("-gen-pseudo-lowering", "lib/Target/RISCV/RISCVGenMCPseudoLowering.inc"),
+             ("-gen-register-bank", "lib/Target/RISCV/RISCVGenRegisterBank.inc"),

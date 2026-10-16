@@ -1,0 +1,70 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/d5746d73cedcf7a593dc4b4f2ce2465e2d45750b
+# Partial pick: only the four files whose missing returns after an exhaustive
+# switch cl.exe reports as C4715 ('not all control paths return a value'),
+# which /WX in the msvc config turns into an error. The remaining hunks of the
+# upstream commit address g++ warnings in code that either compiles cleanly
+# under MSVC or is outside the Bazel build.
+diff --git a/mlir/lib/Conversion/ArmSMEToLLVM/ArmSMEToLLVM.cpp b/mlir/lib/Conversion/ArmSMEToLLVM/ArmSMEToLLVM.cpp
+index f1fa411b82914..40a3489f7a4d7 100644
+--- a/mlir/lib/Conversion/ArmSMEToLLVM/ArmSMEToLLVM.cpp
++++ b/mlir/lib/Conversion/ArmSMEToLLVM/ArmSMEToLLVM.cpp
+@@ -81,6 +81,7 @@ static Operation *createLoadTileSliceIntrinsic(
+       break;
+     }
+   }
++  llvm_unreachable("unknown type in createLoadTileSliceIntrinsic");
+ }
+ 
+ /// Helper to create an arm_sme.intr.st1*.(horiz|vert)' intrinsic.
+@@ -125,6 +126,7 @@ static Operation *createStoreTileSliceIntrinsic(
+           loc, maskOp, ptr, tileId, tileSliceI32);
+     }
+   }
++  llvm_unreachable("unknown type in createStoreTileSliceIntrinsic");
+ }
+ 
+ IntegerAttr getTileIdOrError(arm_sme::ArmSMETileOpInterface op) {
+@@ -850,6 +852,7 @@ struct StreamingVLOpConversion
+       case arm_sme::TypeSize::Double:
+         return rewriter.create<arm_sme::aarch64_sme_cntsd>(loc, i64Type);
+       }
++      llvm_unreachable("unknown type size in StreamingVLOpConversion");
+     }();
+     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
+         streamingVlOp, rewriter.getIndexType(), intrOp->getResult(0));
+diff --git a/mlir/lib/Conversion/IndexToSPIRV/IndexToSPIRV.cpp b/mlir/lib/Conversion/IndexToSPIRV/IndexToSPIRV.cpp
+index b4cc8324883ee..7c441830e1e3b 100644
+--- a/mlir/lib/Conversion/IndexToSPIRV/IndexToSPIRV.cpp
++++ b/mlir/lib/Conversion/IndexToSPIRV/IndexToSPIRV.cpp
+@@ -310,6 +310,7 @@ struct ConvertIndexCmpPattern final : OpConversionPattern<CmpOp> {
+     case IndexCmpPredicate::ULT:
+       return rewriteCmpOp<spirv::ULessThanOp>(op, adaptor, rewriter);
+     }
++    llvm_unreachable("Unknown predicate in ConvertIndexCmpPattern");
+   }
+ };
+ 
+diff --git a/mlir/lib/Dialect/ArmSME/Transforms/TileAllocation.cpp b/mlir/lib/Dialect/ArmSME/Transforms/TileAllocation.cpp
+index 3a2042d23e534..84556fbefbc9f 100644
+--- a/mlir/lib/Dialect/ArmSME/Transforms/TileAllocation.cpp
++++ b/mlir/lib/Dialect/ArmSME/Transforms/TileAllocation.cpp
+@@ -137,6 +137,7 @@ static ArrayRef<TileMask> getMasks(ArmSMETileType type) {
+   case ArmSMETileType::ZAQ:
+     return ZA_Q_MASKS;
+   }
++  llvm_unreachable("unknown type in getMasks");
+ }
+ 
+ class TileAllocator {
+diff --git a/mlir/lib/Dialect/Index/IR/IndexOps.cpp b/mlir/lib/Dialect/Index/IR/IndexOps.cpp
+index 42401dae217ce..5ad989b7da126 100644
+--- a/mlir/lib/Dialect/Index/IR/IndexOps.cpp
++++ b/mlir/lib/Dialect/Index/IR/IndexOps.cpp
+@@ -594,6 +594,7 @@ static bool compareSameArgs(IndexCmpPredicate pred) {
+   case IndexCmpPredicate::ULT:
+     return false;
+   }
++  llvm_unreachable("unknown predicate in compareSameArgs");
+ }
+ 
+ OpFoldResult CmpOp::fold(FoldAdaptor adaptor) {

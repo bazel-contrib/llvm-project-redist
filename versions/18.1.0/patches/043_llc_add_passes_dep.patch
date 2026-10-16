@@ -1,0 +1,13 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/611843d24bd1cfa8b6bf62b48635dbd3a6281759
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index 615593b..4446f5b 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -3274,6 +3274,7 @@ cc_binary(
+         ":IRPrinter",
+         ":IRReader",
+         ":MC",
++        ":Passes",
+         ":Remarks",
+         ":Support",
+         ":Target",
