@@ -1,0 +1,40 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/828467a54e156cbb04820ae47df32c45fbc75fc0
+diff --git a/lld/ELF/Symbols.h b/lld/ELF/Symbols.h
+index bb440530b..c5c61c6d1 100644
+--- a/lld/ELF/Symbols.h
++++ b/lld/ELF/Symbols.h
+@@ -86,7 +86,7 @@ public:
+ 
+   // The default copy constructor is deleted due to atomic flags. Define one for
+   // places where no atomic is needed.
+-  Symbol(const Symbol &o) { memcpy(this, &o, sizeof(o)); }
++  Symbol(const Symbol &o) { memcpy(static_cast<void *>(this), &o, sizeof(o)); }
+ 
+ protected:
+   const char *nameData;
+diff --git a/llvm/include/llvm/Support/Endian.h b/llvm/include/llvm/Support/Endian.h
+index 5e7c1e961..802df5a72 100644
+--- a/llvm/include/llvm/Support/Endian.h
++++ b/llvm/include/llvm/Support/Endian.h
+@@ -63,7 +63,7 @@ template <typename value_type, std::size_t alignment>
+ inline value_type read(const void *memory, endianness endian) {
+   value_type ret;
+ 
+-  memcpy(&ret,
++  memcpy(static_cast<void *>(&ret),
+          LLVM_ASSUME_ALIGNED(
+              memory, (detail::PickAlignment<value_type, alignment>::value)),
+          sizeof(value_type));
+diff --git a/llvm/lib/ExecutionEngine/ExecutionEngine.cpp b/llvm/lib/ExecutionEngine/ExecutionEngine.cpp
+index 768d84501..55a6362ea 100644
+--- a/llvm/lib/ExecutionEngine/ExecutionEngine.cpp
++++ b/llvm/lib/ExecutionEngine/ExecutionEngine.cpp
+@@ -1044,7 +1044,7 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
+     *((double*)Ptr) = Val.DoubleVal;
+     break;
+   case Type::X86_FP80TyID:
+-    memcpy(Ptr, Val.IntVal.getRawData(), 10);
++    memcpy(static_cast<void *>(Ptr), Val.IntVal.getRawData(), 10);
+     break;
+   case Type::PointerTyID:
+     // Ensure 64 bit target pointers are fully initialized on 32 bit hosts.

@@ -1,0 +1,36 @@
+# Subset of (the other four files were rewritten or do not exist in this release):
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/a9304edf20756dd63f896a98bad89e9eac54aebd
+# Together with the iterator_range backport this is what lets MLIR build with
+# GCC 8.3 (debian10), replacing the former target_compatible_with gate.
+diff --git a/mlir/include/mlir/IR/ValueRange.h b/mlir/include/mlir/IR/ValueRange.h
+--- a/mlir/include/mlir/IR/ValueRange.h
++++ b/mlir/include/mlir/IR/ValueRange.h
+@@ -155,6 +155,9 @@ public:
+   /// Returns if the current range is empty.
+   bool empty() const { return size() == 0; }
+ 
++  /// Explicit conversion to an OperandRange.
++  OperandRange getAsOperandRange() const;
++
+   /// Allow implicit conversion to an OperandRange.
+   operator OperandRange() const;
+ 
+diff --git a/mlir/lib/IR/OperationSupport.cpp b/mlir/lib/IR/OperationSupport.cpp
+--- a/mlir/lib/IR/OperationSupport.cpp
++++ b/mlir/lib/IR/OperationSupport.cpp
+@@ -497,9 +497,14 @@ void MutableOperandRange::clear() {
+   }
+ }
+ 
++/// Explicit conversion to an OperandRange.
++OperandRange MutableOperandRange::getAsOperandRange() const {
++  return owner->getOperands().slice(start, length);
++}
++
+ /// Allow implicit conversion to an OperandRange.
+ MutableOperandRange::operator OperandRange() const {
+-  return owner->getOperands().slice(start, length);
++  return getAsOperandRange();
+ }
+ 
+ MutableOperandRange::operator MutableArrayRef<OpOperand>() const {

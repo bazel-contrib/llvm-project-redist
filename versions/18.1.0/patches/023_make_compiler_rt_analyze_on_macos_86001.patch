@@ -1,0 +1,16 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/14be4930c10bcc6f6c0096097350cb3cafff9661
+diff --git a/compiler-rt/BUILD.bazel b/compiler-rt/BUILD.bazel
+index b0fa0a69d..6b76b1aac 100644
+--- a/compiler-rt/BUILD.bazel
++++ b/compiler-rt/BUILD.bazel
+@@ -21,6 +21,10 @@ cc_library(
+         ],
+         # Will raise error unless supported platforms.
+     }),
++    target_compatible_with = select({
++        "@platforms//os:linux": [],
++        "//conditions:default": ["@platforms//:incompatible"],
++    }),
+ )
+ 
+ WIN32_ONLY_FILES = [

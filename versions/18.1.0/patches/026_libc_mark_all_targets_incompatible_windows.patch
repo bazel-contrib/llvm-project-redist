@@ -1,0 +1,86 @@
+# No upstream equivalent, by design: this gate is specific to releases that
+# predate libc's Windows backend: this release has no
+# src/__support/OSUtil/windows/ at all, the Windows time API lands on top of it
+# in e6cf5d2863b7 (#117775, 2024-12), and upstream has been
+# making libc targets buildable on Windows via Bazel since 4bcf1e61eb84
+# (#131172, 2025-03, "the Windows toolchain needs to build libc targets in
+# order to support libc++") and 1d81dfaa8f1c (#150704). A rule-level Windows
+# gate would therefore be rejected upstream, and must not be carried into a
+# version that has that backend: there, a libc failure on Windows is a bug to
+# report, and the per-target `@platforms//os:windows` selects are the fix.
+diff --git a/libc/libc_build_rules.bzl b/libc/libc_build_rules.bzl
+--- a/libc/libc_build_rules.bzl
++++ b/libc/libc_build_rules.bzl
+@@ -21,7 +21,22 @@ def libc_common_copts():
+         "-DLIBC_NAMESPACE=" + LIBC_NAMESPACE,
+     ]
+ 
+-def _libc_library(name, hidden, copts = [], deps = [], **kwargs):
++# LLVM libc has no Windows support to build in this release. The overlay only
++# selects between `@platforms//os:macos` and a `//conditions:default` that
++# means Linux, and src/__support/OSUtil and src/__support/threads carry a
++# `linux/` directory and no `windows/` one, so on Windows the sources fail to
++# compile (SIGRTMIN, Mutex, aligned_alloc) rather than fail to configure; under
++# cl.exe src/__support/macros/optimization.h #errors "Unhandled compiler"
++# first. Gate every libc target and test on the OS so `bazel test //...` on a
++# Windows host skips them instead of stopping in libc. Not needed once the
++# release carries libc's Windows backend (src/__support/OSUtil/windows/,
++# upstream e6cf5d2863b7 and later).
++LIBC_INCOMPATIBLE_WITH_WINDOWS = select({
++    "@platforms//os:windows": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
++def _libc_library(name, hidden, copts = [], deps = [], target_compatible_with = None, **kwargs):
+     """Internal macro to serve as a base for all other libc library rules.
+ 
+     Args:
+@@ -29,8 +44,10 @@ def _libc_library(name, hidden, copts = [], deps = [], **kwargs):
+       copts: The special compiler options for the target.
+       deps: The list of target dependencies if any.
+       hidden: Whether the symbols should be explicitly hidden or not.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: All other attributes relevant for the cc_library rule.
+     """
++    target_compatible_with = target_compatible_with or []
+ 
+     # We want all libc sources to be compiled with "hidden" visibility.
+     # The public symbols will be given "default" visibility explicitly.
+@@ -42,6 +59,7 @@ def _libc_library(name, hidden, copts = [], deps = [], **kwargs):
+         copts = copts + libc_common_copts(),
+         deps = deps,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with + LIBC_INCOMPATIBLE_WITH_WINDOWS,
+         **kwargs
+     )
+ 
+diff --git a/libc/test/libc_test_rules.bzl b/libc/test/libc_test_rules.bzl
+--- a/libc/test/libc_test_rules.bzl
++++ b/libc/test/libc_test_rules.bzl
+@@ -13,9 +13,9 @@ When performing tests we make sure to always use the internal version.
+ """
+ 
+ load("@rules_cc//cc:cc_test.bzl", "cc_test")
+-load("//libc:libc_build_rules.bzl", "libc_common_copts", "libc_internal_target")
++load("//libc:libc_build_rules.bzl", "LIBC_INCOMPATIBLE_WITH_WINDOWS", "libc_common_copts", "libc_internal_target")
+ 
+-def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], **kwargs):
++def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], target_compatible_with = None, **kwargs):
+     """Add target for a libc test.
+ 
+     Args:
+@@ -24,6 +24,7 @@ def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], **kwar
+       libc_function_deps: List of libc_function targets used by this test.
+       copts: The list of options to add to the C++ compilation command.
+       deps: The list of other libraries to be linked in to the test target.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: Attributes relevant for a libc_test. For example, name, srcs.
+     """
+     all_function_deps = libc_function_deps + ["//libc:errno"]
+@@ -36,5 +37,6 @@ def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], **kwar
+         features = ["-link_llvmlibc"],  # Do not link libllvmlibc.a
+         copts = copts + libc_common_copts(),
+         linkstatic = 1,
++        target_compatible_with = (target_compatible_with or []) + LIBC_INCOMPATIBLE_WITH_WINDOWS,
+         **kwargs
+     )
