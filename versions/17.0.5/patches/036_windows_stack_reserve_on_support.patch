@@ -1,0 +1,18 @@
+# Local equivalent (this release selects on @platforms//os:windows, not per-compiler) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/e4301c48fdd95f43644d84868f560b291d46bc60
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -319,7 +319,11 @@ cc_library(
+     }),
+     includes = ["include"],
+     linkopts = select({
+-        "@platforms//os:windows": [],
++        # Reserve a 10 MB stack as CMake does under `if(MSVC)`: the 1 MB default
++        # overflows in clang/unittests ast_tests (Decl.CleansUpAPValues) and
++        # codegen_globalisel_tests (LegalizerInfoTest.RuleSets). Propagates to
++        # every binary that links Support; link.exe and lld-link both accept it.
++        "@platforms//os:windows": ["/STACK:10000000"],
+         "@platforms//os:freebsd": [
+             "-pthread",
+             "-lexecinfo",

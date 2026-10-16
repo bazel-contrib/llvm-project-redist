@@ -1,0 +1,49 @@
+# Local equivalent of the builtin_headers_gen part of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/14513d6afff0a81160f49ccac24e27b021aa4f5a
+# This release copies the headers with a bash genrule whose `$(WORKSPACE_ROOT)` prefix
+# strip only worked when llvm-project was the root module. copy_file needs
+# neither bash nor the prefix.
+diff --git a/clang/BUILD.bazel b/clang/BUILD.bazel
+--- a/clang/BUILD.bazel
++++ b/clang/BUILD.bazel
+@@ -2,6 +2,7 @@
+ # See https://llvm.org/LICENSE.txt for license information.
+ # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ 
++load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+ load("@rules_cc//cc:cc_library.bzl", "cc_library")
+@@ -1677,21 +1678,18 @@ builtin_headers = glob(
+     "lib/Headers/openmp_wrappers/new",
+ ]
+ 
+-genrule(
++[
++    copy_file(
++        name = "copy_" + hdr.replace("lib/Headers/", "staging/include/"),
++        src = hdr,
++        out = hdr.replace("lib/Headers/", "staging/include/"),
++    )
++    for hdr in builtin_headers
++]
++
++filegroup(
+     name = "builtin_headers_gen",
+-    srcs = builtin_headers,
+-    outs = [hdr.replace("lib/Headers/", "staging/include/") for hdr in builtin_headers],
+-    cmd = """
+-       for src in $(SRCS); do
+-         relsrc=$${src#*"$(WORKSPACE_ROOT)"/clang/lib/Headers}
+-         target=$(@D)/staging/include/$$relsrc
+-         mkdir -p $$(dirname $$target)
+-         cp $$src $$target
+-       done""",
+-    output_to_bindir = 1,
+-    toolchains = [
+-        ":workspace_root",
+-    ],
++    srcs = [hdr.replace("lib/Headers/", "staging/include/") for hdr in builtin_headers],
+ )
+ 
+ cc_library(

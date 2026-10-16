@@ -1,0 +1,87 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/b0b8e83e668ac02f81874c3548c8eb8dbf3c33f0
+#
+# "[mlir] Fix use-after-free bugs in {RankedTensorType|VectorType}::Builder"
+# (#68969). VectorType::Builder holds `ArrayRef<bool> scalableDims`, and in
+# two places this release assigns a freshly-constructed SmallVector to it:
+#
+#     if (newIsScalableDim.empty())
+#       scalableDims = SmallVector<bool>(shape.size(), false);
+#
+# The temporary dies at the end of the statement and the member is left
+# pointing into freed memory. `VectorOps.cpp:2205` reaches it on every
+# `vector.shuffle` fold -- `VectorType::Builder(v1VectorType).setShape({1})`
+# takes the empty branch, so `operator Type()` then reads the dangling buffer
+# (and at the old rank, which no longer matches the new shape).
+#
+# Newer clangs diagnose it directly, which is how this surfaced: under
+# `build:clang-cl --copt=/clang:-Werror` the CI agent's clang-cl reported
+#     BuiltinTypes.h(323,22): error: object backing the pointer will be
+#     destroyed at the end of the full-expression
+#     [-Werror,-Wdangling-assignment-gsl]
+# 2006 times, on lines 323 and 331, failing the whole Windows clang-cl job.
+#
+# The fix is upstream's: drop the assignments and let the empty ArrayRef
+# through. `VectorType::get` already expands an empty `scalableDims` to
+# all-false at the right rank (BuiltinTypes.td:1086, "While `scalableDims` is
+# optional, its default value should be `false` for every dim in `shape`"),
+# so the behaviour is unchanged wherever it was previously defined. The
+# constructor's branch was dead anyway -- it assigned to the *parameter*, not
+# to `this->scalableDims`.
+#
+# Making `scalableDims` legitimately empty means `dropDim` can no longer
+# assume it has something to erase, so it gains upstream's guard. Upstream
+# spells that guard `if (!scalableDims.empty()) scalableDims.erase(pos);` on
+# top of a new `CopyOnWriteArrayRef<T>` helper; the copy-on-write refactor,
+# its new `mlir/Support/ADTExtras.h` header and the removal of the
+# `numScalableDims` constructor parameter are all left out here. They are a
+# cleanup rather than part of the fix, and dropping a parameter from a public
+# constructor is not something to do to a released tarball. Only the
+# semantics change, and they change to exactly what upstream landed.
+diff --git a/mlir/include/mlir/IR/BuiltinTypes.h b/mlir/include/mlir/IR/BuiltinTypes.h
+--- a/mlir/include/mlir/IR/BuiltinTypes.h
++++ b/mlir/include/mlir/IR/BuiltinTypes.h
+@@ -318,21 +318,12 @@ public:
+   /// Build from scratch.
+   Builder(ArrayRef<int64_t> shape, Type elementType,
+           unsigned numScalableDims = 0, ArrayRef<bool> scalableDims = {})
+-      : shape(shape), elementType(elementType) {
+-    if (scalableDims.empty())
+-      scalableDims = SmallVector<bool>(shape.size(), false);
+-    else
+-      this->scalableDims = scalableDims;
+-  }
++      : shape(shape), elementType(elementType), scalableDims(scalableDims) {}
+ 
+   Builder &setShape(ArrayRef<int64_t> newShape,
+                     ArrayRef<bool> newIsScalableDim = {}) {
+-    if (newIsScalableDim.empty())
+-      scalableDims = SmallVector<bool>(shape.size(), false);
+-    else
+-      scalableDims = newIsScalableDim;
+-
+     shape = newShape;
++    scalableDims = newIsScalableDim;
+     return *this;
+   }
+ 
+@@ -346,13 +337,15 @@ public:
+     assert(pos < shape.size() && "overflow");
+     if (storage.empty())
+       storage.append(shape.begin(), shape.end());
+-    if (storageScalableDims.empty())
+-      storageScalableDims.append(scalableDims.begin(), scalableDims.end());
+     storage.erase(storage.begin() + pos);
+-    storageScalableDims.erase(storageScalableDims.begin() + pos);
+     shape = {storage.data(), storage.size()};
+-    scalableDims =
+-        ArrayRef<bool>(storageScalableDims.data(), storageScalableDims.size());
++    if (!scalableDims.empty()) {
++      if (storageScalableDims.empty())
++        storageScalableDims.append(scalableDims.begin(), scalableDims.end());
++      storageScalableDims.erase(storageScalableDims.begin() + pos);
++      scalableDims = ArrayRef<bool>(storageScalableDims.data(),
++                                    storageScalableDims.size());
++    }
+     return *this;
+   }
+ 

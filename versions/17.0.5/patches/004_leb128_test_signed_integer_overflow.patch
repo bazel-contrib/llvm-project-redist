@@ -1,0 +1,14 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/e3f16de9a33d48f6a9d8035a9aebfdb0e3a16ea5
+diff --git a/llvm/unittests/Support/LEB128Test.cpp b/llvm/unittests/Support/LEB128Test.cpp
+index 986d29358..21523e5f7 100644
+--- a/llvm/unittests/Support/LEB128Test.cpp
++++ b/llvm/unittests/Support/LEB128Test.cpp
+@@ -379,7 +379,7 @@ TEST(LEB128Test, SLEB128Size) {
+   EXPECT_EQ(10u, getSLEB128Size(-0x4100000000000000LL));
+ 
+   EXPECT_EQ(10u, getSLEB128Size(-0x7fffffffffffffffLL));
+-  EXPECT_EQ(10u, getSLEB128Size(-0x8000000000000000LL));
++  EXPECT_EQ(10u, getSLEB128Size(-0x7fffffffffffffffLL - 1));
+   EXPECT_EQ(10u, getSLEB128Size(INT64_MIN));
+ }
+ 

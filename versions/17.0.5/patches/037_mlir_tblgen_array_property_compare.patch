@@ -1,0 +1,31 @@
+# mlir-tblgen: compare ArrayProperty storage element-wise.
+#
+# The generated `Properties::operator==` compares every member with `==`. In
+# this release `ArrayProperty<T, N>` stores a plain `T[N]`, so for those members the
+# comparison is between array addresses: always false, and a hard error under
+# -Werror with clang >= 20 (-Warray-compare, 7347e5e89a67). Upstream stopped
+# emitting it by moving array properties to SmallVector storage in
+# 8955e285e1ac, which is far too large for a point release; emitting std::equal
+# for C-array storage fixes both the diagnostic and the semantics with no
+# compiler flags, for the in-tree test dialect and for consumers alike.
+diff --git a/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp b/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
+--- a/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
++++ b/mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp
+@@ -3789,8 +3789,15 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
+            << "    " << name << "Ty " << name;
+         if (prop.hasDefaultValue())
+           os << " = " << prop.getDefaultValue();
+-        comparatorOs << "        rhs." << name << " == this->" << name
+-                     << " &&\n";
++        // `ArrayProperty` stores a C array; `==` on it compares addresses
++        // (always false, and -Warray-compare on clang >= 20). Compare elements.
++        if (prop.getStorageType().endswith("]"))
++          comparatorOs << "        std::equal(std::begin(rhs." << name
++                       << "), std::end(rhs." << name << "), std::begin(this->"
++                       << name << "), std::end(this->" << name << ")) &&\n";
++        else
++          comparatorOs << "        rhs." << name << " == this->" << name
++                       << " &&\n";
+         // Emit accessors using the interface type.
+         const char *accessorFmt = R"decl(;
+     {0} get{1}() {

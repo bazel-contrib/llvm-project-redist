@@ -1,0 +1,21 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/8c8e24ba495666ca6746c5a93b578f4daadf7f09
+diff --git a/.bazelrc b/.bazelrc
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -126,6 +126,16 @@ build:windows --copt=/Zc:inline --host_copt=/Zc:inline
+ # pre-C++17 path. CMake applies it to C++ only.
+ build:windows --cxxopt=/Zc:__cplusplus --host_cxxopt=/Zc:__cplusplus
+ 
++# Standards conformance mode, which CMake also applies to every MSVC-family
++# compiler (llvm/cmake/modules/HandleLLVMOptions.cmake:589-591: "This ensures
++# handling of various C/C++ constructs is more similar to other compilers").
++# It is clang-cl's default already -- Options.td documents /permissive- as
++# "(default)" -- so, like the /Zc flags above, it only changes cl.exe builds.
++# Without it cl.exe compiles LLVM in its permissive dialect, where template
++# code can behave differently from every other supported compiler; the
++# Attributor unit tests abort on Windows under that dialect.
++build:windows --copt=/permissive- --host_copt=/permissive-
++
+ # Use the more flexible bigobj format for C++ files that have lots of symbols.
+ build:windows --cxxopt=/bigobj --host_cxxopt=/bigobj
+ 
