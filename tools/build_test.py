@@ -273,6 +273,21 @@ class TransformModuleBaselineTest(unittest.TestCase):
         content = (self.src / "MODULE.bazel").read_text()
         self.assertIn("platforms", content)
 
+    def test_baseline_floors_rules_cc_for_clang_cl(self) -> None:
+        # 0.2.25 is the first rules_cc that can configure a clang-cl toolchain.
+        transform_module(self.src, "17.0.3")
+        content = (self.src / "MODULE.bazel").read_text()
+        self.assertIn('bazel_dep(name = "rules_cc", version = "0.2.25")', content)
+
+    def test_baseline_declares_third_party_repos(self) -> None:
+        # The overlay patches reach these through the BCR module names.
+        transform_module(self.src, "17.0.3")
+        content = (self.src / "MODULE.bazel").read_text()
+        for repo in ("llvm_zlib", "llvm_zstd", "pfm"):
+            self.assertIn(f'repo_name = "{repo}"', content)
+        for name in ("gmp", "mpfr"):
+            self.assertIn(f'bazel_dep(name = "{name}"', content)
+
     def test_baseline_has_module_name_and_version(self) -> None:
         transform_module(self.src, "17.0.3.bcr.5")
         content = (self.src / "MODULE.bazel").read_text()
