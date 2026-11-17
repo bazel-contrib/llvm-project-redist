@@ -15,6 +15,12 @@
 # The rendered file belongs to its version: hand edits are allowed when that
 # version needs them. `render_presubmit --check` shows how far a version's
 # file has drifted from a fresh render.
+#
+# Every task has a build step as well as a test step. bazelci runs
+# `bazel test` with --build_tests_only, so test_targets alone only compiles
+# the tests and their dependencies; build_targets is what makes CI compile the
+# non-test binaries and libraries consumers actually use (lld, c-index-test,
+# bolt, ...). build_flags mirrors test_flags minus the test-only filters.
 matrix:
   platform:
     - debian10
@@ -39,6 +45,14 @@ tasks:
     shell_commands:
       - sudo apt-get update
       - sudo apt-get install -y --no-install-recommends lld
+    build_flags:
+      - --config=generic_clang
+      - --build_tag_filters=-nobuildkite
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=generic_clang
       - --build_tag_filters=-nobuildkite
@@ -52,6 +66,14 @@ tasks:
     name: bazel test //... (linux, gcc)
     platform: ${{ platform }}
     bazel: ${{ bazel }}
+    build_flags:
+      - --config=generic_gcc
+      - --build_tag_filters=-nobuildkite
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=generic_gcc
       - --build_tag_filters=-nobuildkite
@@ -69,6 +91,14 @@ tasks:
     name: bazel test //... (macOS x86_64, clang)
     platform: macos
     bazel: ${{ bazel }}
+    build_flags:
+      - --config=generic_clang
+      - --build_tag_filters=-nobuildkite
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=generic_clang
       - --build_tag_filters=-nobuildkite
@@ -82,6 +112,14 @@ tasks:
     name: bazel test //... (macOS arm64, clang)
     platform: macos_arm64
     bazel: ${{ bazel }}
+    build_flags:
+      - --config=generic_clang
+      - --build_tag_filters=-nobuildkite
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=generic_clang
       - --build_tag_filters=-nobuildkite
@@ -97,6 +135,14 @@ tasks:
     name: bazel test //... (windows, clang-cl)
     platform: windows
     bazel: ${{ bazel_clang_cl }}
+    build_flags:
+      - --config=clang-cl
+      - --build_tag_filters=-nobuildkite,-no_windows
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=clang-cl
       - --build_tag_filters=-nobuildkite,-no_windows
@@ -110,6 +156,14 @@ tasks:
     name: bazel test //... (windows, msvc)
     platform: windows
     bazel: ${{ bazel }}
+    build_flags:
+      - --config=msvc
+      - --build_tag_filters=-nobuildkite,-no_windows
+      - --keep_going
+      - --incompatible_disallow_empty_glob=true
+      - --incompatible_autoload_externally=
+    build_targets:
+      - '@llvm-project//...'
     test_flags:
       - --config=msvc
       - --build_tag_filters=-nobuildkite,-no_windows
