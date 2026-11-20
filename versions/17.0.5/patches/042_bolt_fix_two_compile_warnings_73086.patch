@@ -1,0 +1,51 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/fa5486e487a6f98358eca572efb4b1fd7d27d1f5
+diff --git a/bolt/lib/Passes/IndirectCallPromotion.cpp b/bolt/lib/Passes/IndirectCallPromotion.cpp
+index ea8019431..d977795c9 100644
+--- a/bolt/lib/Passes/IndirectCallPromotion.cpp
++++ b/bolt/lib/Passes/IndirectCallPromotion.cpp
+@@ -158,6 +158,7 @@ static cl::opt<bool> ICPPeelForInline(
+ 
+ } // namespace opts
+ 
++#ifndef NDEBUG
+ static bool verifyProfile(std::map<uint64_t, BinaryFunction> &BFs) {
+   bool IsValid = true;
+   for (auto &BFI : BFs) {
+@@ -182,6 +183,7 @@ static bool verifyProfile(std::map<uint64_t, BinaryFunction> &BFs) {
+   }
+   return IsValid;
+ }
++#endif
+ 
+ namespace llvm {
+ namespace bolt {
+@@ -1456,7 +1458,6 @@ void IndirectCallPromotion::runOnFunctions(BinaryContext &BC) {
+                                std::max<uint64_t>(TotalIndexBasedCandidates, 1))
+          << "%\n";
+ 
+-  (void)verifyProfile;
+ #ifndef NDEBUG
+   verifyProfile(BFs);
+ #endif
+diff --git a/bolt/lib/Passes/ReorderAlgorithm.cpp b/bolt/lib/Passes/ReorderAlgorithm.cpp
+index b5052cdad..727b0c3f6 100644
+--- a/bolt/lib/Passes/ReorderAlgorithm.cpp
++++ b/bolt/lib/Passes/ReorderAlgorithm.cpp
+@@ -20,7 +20,7 @@
+ #include <random>
+ #include <stack>
+ 
+-#undef  DEBUG_TYPE
++#undef DEBUG_TYPE
+ #define DEBUG_TYPE "bolt"
+ 
+ using namespace llvm;
+@@ -425,7 +425,7 @@ void TSPReorderAlgorithm::reorderBasicBlocks(BinaryFunction &BF,
+   }
+ 
+   std::vector<std::vector<int64_t>> DP;
+-  DP.resize(1 << N);
++  DP.resize(static_cast<size_t>(1) << N);
+   for (std::vector<int64_t> &Elmt : DP)
+     Elmt.resize(N, -1);
+ 

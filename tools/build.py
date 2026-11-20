@@ -364,8 +364,8 @@ bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "zlib-ng", version = "2.3.3.bcr.2", repo_name = "llvm_zlib")
 bazel_dep(name = "zstd", version = "1.5.7.bcr.3", repo_name = "llvm_zstd")
-bazel_dep(name = "gmp", version = "6.3.0.bcr.4")
-bazel_dep(name = "mpfr", version = "4.2.2.bcr.4")
+bazel_dep(name = "gmp", version = "6.3.0.bcr.5")
+bazel_dep(name = "mpfr", version = "4.2.2.bcr.5")
 bazel_dep(name = "libpfm", version = "4.13.0", repo_name = "pfm")
 """
 
