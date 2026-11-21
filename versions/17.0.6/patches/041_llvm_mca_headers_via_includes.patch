@@ -1,0 +1,29 @@
+# Local application of the idiom from:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/20a018a6d9e13575b1aac2625e9db46b5da6676a
+#
+# "[bazel] Use `includes` for per-target lib/Target dirs to fix
+# -Wmicrosoft-include" (#228282) fixed lib/Target; the llvm-mca headers have
+# the same shape and fail the same way. tools/llvm-mca/llvm-mca.cpp includes
+# "Views/BottleneckAnalysis.h", which includes "Views/InstructionView.h". On
+# Windows clang-cl's Microsoft include rule resolves that second include
+# through the includer's directory to the real tools/llvm-mca/Views/
+# InstructionView.h, while the ordinary lookup hits the `_virtual_includes`
+# copy that `strip_include_prefix` creates (a copy, not a symlink, on
+# Windows). clang reports the mismatch under -Wmicrosoft-include, fatal with
+# the clang-cl config's -Werror. Exposing tools/llvm-mca through `includes`
+# leaves no copy, so both lookups agree. Proposed upstream as a PR from the
+# bazel-llvm-mca-includes branch: the same change on the MCAApplication
+# library that replaced this target in 19.x.
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index be6f6819a..34c433936 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2974,7 +2974,7 @@ cc_library(
+         "tools/llvm-mca/*.h",
+         "tools/llvm-mca/Views/*.h",
+     ]),
+-    strip_include_prefix = "tools/llvm-mca",
++    includes = ["tools/llvm-mca"],
+ )
+ 
+ cc_library(

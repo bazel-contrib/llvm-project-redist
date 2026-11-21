@@ -1,0 +1,14 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/43c26bbc425dbd8caee311a0d5e4d90c8e71d0d8
+diff --git a/libc/src/stdlib/bsearch.h b/libc/src/stdlib/bsearch.h
+index 6cab8f736..d8f45e1c6 100644
+--- a/libc/src/stdlib/bsearch.h
++++ b/libc/src/stdlib/bsearch.h
+@@ -6,7 +6,7 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
+-#include <stdlib.h>
++#include <stddef.h> // size_t
+ 
+ namespace __llvm_libc {
+ 
