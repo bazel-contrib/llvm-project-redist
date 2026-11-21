@@ -1,0 +1,78 @@
+# Local equivalent (same change; the upstream hunks do not apply because the
+# surrounding comments differ in this release) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/20a018a6d9e13575b1aac2625e9db46b5da6676a
+# Replace the -Wmicrosoft-include suppression with the structural fix.
+#
+# MCTargetDesc/RISCVTargetStreamer.h does `#include "RISCV.h"` from its parent
+# directory. Reached from RISCVAsmPrinter.cpp, clang-cl's Microsoft include rule
+# finds the real lib/Target/RISCV/RISCV.h while the ordinary lookup first hits
+# the `_virtual_includes` copy that `strip_include_prefix` creates (a copy, not
+# a symlink, on Windows), and clang reports the mismatch under
+# -Wmicrosoft-include, fatal with the clang-cl config's -Werror. Exposing
+# lib/Target/<name> through `includes` on the generated UtilsAndDesc/CodeGen
+# rules leaves no copy, so both lookups agree and nothing needs suppressing.
+# Pending upstream; carried here so the clang-cl presubmit exercises it.
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2275,11 +2275,7 @@ gentbl(
+         srcs = ["lib/Target/" + target["name"] + "/TargetInfo/" + target["name"] + "TargetInfo.cpp"],
+         hdrs = glob(["lib/Target/" + target["name"] + "/TargetInfo/*.h"]),
+         copts = llvm_copts,
+-        # Workaround for https://github.com/bazelbuild/bazel/issues/3828
+-        # TODO(gcmn): Remove this when upgrading to a Bazel version containing
+-        # https://github.com/bazelbuild/bazel/commit/e3b7e17b05f1
+         includes = ["lib/Target/" + target["name"]],
+-        strip_include_prefix = "lib/Target/" + target["name"],
+         deps = [
+             ":" + target["name"] + "CommonTableGen",
+             ":MC",
+@@ -2298,8 +2294,8 @@ gentbl(
+             # We have to include these headers here as well as in the `hdrs`
+             # below to allow the `.cpp` files to use file-relative-inclusion to
+             # find them, even though consumers of this library use inclusion
+-            # relative to the target with the `strip_includes_prefix` of this
+-            # library. This mixture is likely incompatible with header modules.
++            # relative to the target directory via `includes`. This mixture is
++            # likely incompatible with header modules.
+             "lib/Target/" + target["name"] + "/MCTargetDesc/*.h",
+             "lib/Target/" + target["name"] + "/Utils/*.h",
+         ], allow_empty = True),
+@@ -2316,9 +2312,9 @@ gentbl(
+             "lib/Target/" + target["name"] + "/*.h",
+ 
+             # FIXME: The entries below should be `textual_hdrs` instead of
+-            # `hdrs`, but unfortunately that doesn't work with
+-            # `strip_include_prefix`:
+-            # https://github.com/bazelbuild/bazel/issues/12424
++            # `hdrs`. That was blocked by `strip_include_prefix`
++            # (https://github.com/bazelbuild/bazel/issues/12424), which this
++            # rule no longer uses.
+             #
+             # Once that issue is fixed and released, we can switch this to
+             # `textual_hdrs` and remove the feature disabling the various Bazel
+@@ -2334,7 +2330,13 @@ gentbl(
+             "-header_modules",
+             "-layering_check",
+         ],
+-        strip_include_prefix = "lib/Target/" + target["name"],
++        # `includes` rather than `strip_include_prefix`: the prefix exposes the
++        # headers through a `_virtual_includes` copy, and when a header includes
++        # one from its parent directory (MCTargetDesc/RISCVTargetStreamer.h
++        # -> "RISCV.h") clang-cl's Microsoft include rule finds the real file,
++        # sees the ordinary lookup land on the copy, and rejects the mismatch
++        # under -Wmicrosoft-include. With `includes` both lookups agree.
++        includes = ["lib/Target/" + target["name"]],
+         deps = [
+             ":BinaryFormat",
+             # Depending on `:CodeGen` headers in this library is almost
+@@ -2363,7 +2365,8 @@ gentbl(
+         hdrs = ["lib/Target/" + target["name"] + "/" + target["short_name"] + ".h"],
+         copts = llvm_copts,
+         features = ["-layering_check"],
+-        strip_include_prefix = "lib/Target/" + target["name"],
++        # See the `includes` note on the `UtilsAndDesc` rule above.
++        includes = ["lib/Target/" + target["name"]],
+         textual_hdrs = glob([
+             "lib/Target/" + target["name"] + "/*.def",
+             "lib/Target/" + target["name"] + "/*.inc",
