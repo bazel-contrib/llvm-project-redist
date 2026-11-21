@@ -1,0 +1,27 @@
+# No upstream commit yet (proposed as a PR from the clang-c-index-test-windows-copts
+# branch): `-Wno-uninitialized` is a clang/gcc spelling that cl.exe rejects
+# outright (D8021: invalid numeric argument '/Wno-uninitialized'), so the
+# c-index-test binary cannot be built with the msvc config at all. Keyed on
+# the OS rather than the compiler because the compiler identity the Windows
+# toolchain reports differs between Bazel 7 and 8+ (see the clang-cl notes in
+# .bazelrc). CMake never passes -Wno-uninitialized to c-index-test at all, so
+# cl.exe never sees it there.
+diff --git a/clang/BUILD.bazel b/clang/BUILD.bazel
+index 4ef874848..73053bd10 100644
+--- a/clang/BUILD.bazel
++++ b/clang/BUILD.bazel
+@@ -2069,9 +2069,11 @@ cc_binary(
+         "tools/c-index-test/c-index-test.c",
+         "tools/c-index-test/core_main.cpp",
+     ],
+-    copts = [
+-        "-Wno-uninitialized",
+-    ],
++    copts = select({
++        # cl.exe rejects clang/gcc-style -W flags (D8021).
++        "@platforms//os:windows": [],
++        "//conditions:default": ["-Wno-uninitialized"],
++    }),
+     stamp = 0,
+     deps = [
+         ":ast",

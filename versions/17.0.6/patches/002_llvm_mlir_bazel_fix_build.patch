@@ -1,0 +1,25 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/bf8fd086d09cfeeec44f29e6aed6ce61cede2334
+diff --git a/mlir/BUILD.bazel b/mlir/BUILD.bazel
+index c3a2f123b..75287d5e6 100644
+--- a/mlir/BUILD.bazel
++++ b/mlir/BUILD.bazel
+@@ -7607,6 +7607,7 @@ cc_library(
+         "//llvm:Core",
+         "//llvm:FrontendOpenMP",
+         "//llvm:Support",
++        "//llvm:TransformUtils",
+     ],
+ )
+ 
+diff --git a/third-party/unittest/BUILD.bazel b/third-party/unittest/BUILD.bazel
+index 2d9a396cf..6688a9f00 100644
+--- a/third-party/unittest/BUILD.bazel
++++ b/third-party/unittest/BUILD.bazel
+@@ -54,6 +54,7 @@ cc_library(
+     ) + [
+     ],
+     hdrs = [
++        "googletest/include/gtest/internal/gtest-port.h",
+         "googletest/include/gtest/gtest.h",
+         "googletest/include/gtest/gtest-spi.h",
+     ],
