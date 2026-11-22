@@ -1,0 +1,67 @@
+# Remaining hunks (the four mlir/lib files) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/a9304edf20756dd63f896a98bad89e9eac54aebd
+#
+# 021 carries this commit's ValueRange.h and OperationSupport.cpp hunks. With
+# gcc 8.3 (debian10) the untouched call sites still fail:
+#   call of overloaded 'OperandRange(mlir::MutableOperandRange&)' is ambiguous
+#   no matching function for call to 'llvm::SmallVector<mlir::Value>::SmallVector(<brace-enclosed initializer list>)'
+diff --git a/mlir/lib/Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation.cpp b/mlir/lib/Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation.cpp
+index c535d6c13..de57a3deb 100644
+--- a/mlir/lib/Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation.cpp
++++ b/mlir/lib/Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation.cpp
+@@ -981,13 +981,13 @@ BufferDeallocation::handleInterface(RegionBranchTerminatorOpInterface op) {
+ 
+   SmallVector<Value> updatedOwnerships;
+   auto result = deallocation_impl::insertDeallocOpForReturnLike(
+-      state, op, OperandRange(operands), updatedOwnerships);
++      state, op, operands.getAsOperandRange(), updatedOwnerships);
+   if (failed(result) || !*result)
+     return result;
+ 
+   // Add an additional operand for every MemRef for the ownership indicator.
+   if (!funcWithoutDynamicOwnership) {
+-    SmallVector<Value> newOperands{OperandRange(operands)};
++    SmallVector<Value> newOperands{operands.getAsOperandRange()};
+     newOperands.append(updatedOwnerships.begin(), updatedOwnerships.end());
+     operands.assign(newOperands);
+   }
+diff --git a/mlir/lib/Dialect/ControlFlow/Transforms/BufferDeallocationOpInterfaceImpl.cpp b/mlir/lib/Dialect/ControlFlow/Transforms/BufferDeallocationOpInterfaceImpl.cpp
+index 9423af254..0dc357c22 100644
+--- a/mlir/lib/Dialect/ControlFlow/Transforms/BufferDeallocationOpInterfaceImpl.cpp
++++ b/mlir/lib/Dialect/ControlFlow/Transforms/BufferDeallocationOpInterfaceImpl.cpp
+@@ -84,7 +84,7 @@ struct CondBranchOpInterface
+             DenseMap<Value, Value> &mapping) -> DeallocOp {
+       SmallVector<Value> toRetain;
+       state.getMemrefsToRetain(condBr->getBlock(), target,
+-                               OperandRange(destOperands), toRetain);
++                               destOperands.getAsOperandRange(), toRetain);
+       SmallVector<Value> adaptedConditions(
+           llvm::map_range(conditions, conditionModifier));
+       auto deallocOp = builder.create<bufferization::DeallocOp>(
+diff --git a/mlir/lib/Dialect/Linalg/Transforms/Fusion.cpp b/mlir/lib/Dialect/Linalg/Transforms/Fusion.cpp
+index a85532b2f..223d728b0 100644
+--- a/mlir/lib/Dialect/Linalg/Transforms/Fusion.cpp
++++ b/mlir/lib/Dialect/Linalg/Transforms/Fusion.cpp
+@@ -149,7 +149,7 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
+   SmallVector<Type, 4> resultTypes;
+   resultTypes.reserve(producer->getNumResults());
+   int64_t firstInitOperandIdx =
+-      static_cast<OperandRange>(producerDpsInits).getBeginOperandIndex();
++      producerDpsInits.getAsOperandRange().getBeginOperandIndex();
+   for (int64_t i = 0, e = producer->getNumResults(); i < e; ++i) {
+     resultTypes.push_back(clonedShapes[firstInitOperandIdx + i].getType());
+   }
+diff --git a/mlir/lib/Transforms/Utils/CFGToSCF.cpp b/mlir/lib/Transforms/Utils/CFGToSCF.cpp
+index f2998b404..eefdf1d4e 100644
+--- a/mlir/lib/Transforms/Utils/CFGToSCF.cpp
++++ b/mlir/lib/Transforms/Utils/CFGToSCF.cpp
+@@ -1183,8 +1183,7 @@ static FailureOr<SmallVector<Block *>> transformToStructuredCFBranches(
+     auto builder = OpBuilder::atBlockTerminator(user->getBlock());
+     LogicalResult result = interface.createStructuredBranchRegionTerminatorOp(
+         user->getLoc(), builder, structuredCondOp, user,
+-        static_cast<OperandRange>(
+-            getMutableSuccessorOperands(user->getBlock(), 0)));
++        getMutableSuccessorOperands(user->getBlock(), 0).getAsOperandRange());
+     if (failed(result))
+       return failure();
+     user->erase();

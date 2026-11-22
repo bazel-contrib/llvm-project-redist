@@ -1,0 +1,120 @@
+# Proposed upstream as a PR from the bazel-libc-macos-x86_64 branch: the same
+# `macos_x86_64` config_setting and LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 gate on
+# _libc_library, libc_test and the MPFR wrapper, appended here to the Windows
+# gate in 026 (upstream has no such gate; it only builds libc on macOS arm64).
+# In this release the failure is concrete: on an Intel Mac
+# src/__support/OSUtil/darwin/syscall.h #errors "Unsupported architecture",
+# which takes down __support_osutil_io and with it
+# libc/test/UnitTest:test_logger, libc:printf_converter and every libc test.
+# Gating mpfr_impl too keeps @mpfr/@gmp out of that build; gmp 6.3.0.bcr.4 is
+# only tested on macos_arm64 in the BCR and its x86_64 mpn assembly does not
+# assemble with the Mach-O assembler ("invalid alignment value" on
+# `.align 32, 0x90`).
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+index 779ad295b..f4a3f62d8 100644
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -64,6 +64,15 @@ config_setting(
+     flag_values = {":mpfr": "system"},
+ )
+ 
++# macOS on x86_64: see LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 in libc_build_rules.bzl.
++config_setting(
++    name = "macos_x86_64",
++    constraint_values = [
++        "@platforms//cpu:x86_64",
++        "@platforms//os:macos",
++    ],
++)
++
+ cc_library(
+     name = "libmpfr_system",
+     linkopts = ["-lmpfr"],
+diff --git a/libc/libc_build_rules.bzl b/libc/libc_build_rules.bzl
+index dcefec4ed..85a42ec1b 100644
+--- a/libc/libc_build_rules.bzl
++++ b/libc/libc_build_rules.bzl
+@@ -36,6 +36,20 @@ LIBC_INCOMPATIBLE_WITH_WINDOWS = select({
+     "//conditions:default": [],
+ })
+ 
++# LLVM libc's Darwin backend is arm64-only. src/__support/OSUtil/darwin/
++# syscall.h #errors "Unsupported architecture" unless LIBC_TARGET_ARCH_IS_ANY_ARM,
++# and nothing under src/__support/OSUtil/darwin/ has an x86_64 variant, so on
++# an Intel Mac every target that reaches __support_osutil_io (the unit test
++# logger, printf_converter, ...) fails to compile. Upstream only builds libc on
++# macOS arm64 and has no per-CPU gate for this, so gate it here the same way as
++# Windows. This also keeps @mpfr and @gmp out of the macOS x86_64 build:
++# gmp 6.3.0.bcr.4 is only tested on macos_arm64 in the BCR and its x86_64
++# mpn assembly emits GNU-style `.align 32` that the Mach-O assembler rejects.
++LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 = select({
++    "//libc:macos_x86_64": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
+ def _libc_library(name, hidden, copts = [], deps = [], target_compatible_with = None, **kwargs):
+     """Internal macro to serve as a base for all other libc library rules.
+ 
+@@ -59,7 +73,7 @@ def _libc_library(name, hidden, copts = [], deps = [], target_compatible_with =
+         copts = copts + libc_common_copts(),
+         deps = deps,
+         linkstatic = 1,
+-        target_compatible_with = target_compatible_with + LIBC_INCOMPATIBLE_WITH_WINDOWS,
++        target_compatible_with = target_compatible_with + LIBC_INCOMPATIBLE_WITH_WINDOWS + LIBC_INCOMPATIBLE_WITH_MACOS_X86_64,
+         **kwargs
+     )
+ 
+diff --git a/libc/test/libc_test_rules.bzl b/libc/test/libc_test_rules.bzl
+index c06bfc186..54b5a5b95 100644
+--- a/libc/test/libc_test_rules.bzl
++++ b/libc/test/libc_test_rules.bzl
+@@ -13,7 +13,13 @@ When performing tests we make sure to always use the internal version.
+ """
+ 
+ load("@rules_cc//cc:cc_test.bzl", "cc_test")
+-load("//libc:libc_build_rules.bzl", "LIBC_INCOMPATIBLE_WITH_WINDOWS", "libc_common_copts", "libc_internal_target")
++load(
++    "//libc:libc_build_rules.bzl",
++    "LIBC_INCOMPATIBLE_WITH_MACOS_X86_64",
++    "LIBC_INCOMPATIBLE_WITH_WINDOWS",
++    "libc_common_copts",
++    "libc_internal_target",
++)
+ 
+ def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], target_compatible_with = None, **kwargs):
+     """Add target for a libc test.
+@@ -37,6 +43,6 @@ def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], target
+         features = ["-link_llvmlibc"],  # Do not link libllvmlibc.a
+         copts = copts + libc_common_copts(),
+         linkstatic = 1,
+-        target_compatible_with = (target_compatible_with or []) + LIBC_INCOMPATIBLE_WITH_WINDOWS,
++        target_compatible_with = (target_compatible_with or []) + LIBC_INCOMPATIBLE_WITH_WINDOWS + LIBC_INCOMPATIBLE_WITH_MACOS_X86_64,
+         **kwargs
+     )
+diff --git a/libc/utils/MPFRWrapper/BUILD.bazel b/libc/utils/MPFRWrapper/BUILD.bazel
+index 0084616df..a78bca7c1 100644
+--- a/libc/utils/MPFRWrapper/BUILD.bazel
++++ b/libc/utils/MPFRWrapper/BUILD.bazel
+@@ -5,7 +5,12 @@
+ # A wrapper library over MPFR for use with LLVM libc math unittests.
+ 
+ load("@rules_cc//cc:cc_library.bzl", "cc_library")
+-load("//libc:libc_build_rules.bzl", "LIBC_INCOMPATIBLE_WITH_WINDOWS", "libc_support_library")
++load(
++    "//libc:libc_build_rules.bzl",
++    "LIBC_INCOMPATIBLE_WITH_MACOS_X86_64",
++    "LIBC_INCOMPATIBLE_WITH_WINDOWS",
++    "libc_support_library",
++)
+ 
+ package(default_visibility = ["//visibility:public"])
+ 
+@@ -17,7 +22,7 @@ cc_library(
+     target_compatible_with = select({
+         "//conditions:default": [],
+         "//libc:mpfr_disable": ["@platforms//:incompatible"],
+-    }) + LIBC_INCOMPATIBLE_WITH_WINDOWS,
++    }) + LIBC_INCOMPATIBLE_WITH_WINDOWS + LIBC_INCOMPATIBLE_WITH_MACOS_X86_64,
+     deps = select(
+         {
+             "//conditions:default": [],

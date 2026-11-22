@@ -1,0 +1,17 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/99f45b4c5b67cccb7845580a67b42776f49ef0e2
+# Partial pick: only the hunk that adds `:CodeGen` to the generated
+# <Target>UtilsAndDesc deps, which SPIRV's MCTargetDesc needs for the CodeGen
+# headers it includes. The commit's two other hunks are formatting-only and
+# touch lines that do not exist in this release.
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index c159204cede7e..df5cd276b12f7 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -2421,6 +2421,7 @@ gentbl(
+         strip_include_prefix = "lib/Target/" + target["name"],
+         deps = [
+             ":BinaryFormat",
++            ":CodeGen",
+             ":CodeGenTypes",
+             ":Core",
+             ":DebugInfoCodeView",

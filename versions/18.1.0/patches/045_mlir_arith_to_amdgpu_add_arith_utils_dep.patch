@@ -1,0 +1,14 @@
+# The ArithToAMDGPU hunk of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/34466019e74fe455f6c67bab1d48222a08bede4d
+diff --git a/mlir/BUILD.bazel b/mlir/BUILD.bazel
+index a807f68..513e241 100644
+--- a/mlir/BUILD.bazel
++++ b/mlir/BUILD.bazel
+@@ -7957,6 +7957,7 @@ cc_library(
+     deps = [
+         ":AMDGPUDialect",
+         ":ArithDialect",
++        ":ArithUtils",
+         ":ConversionPassIncGen",
+         ":ConvertToLLVMInterface",
+         ":IR",
