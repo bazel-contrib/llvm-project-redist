@@ -1,0 +1,20 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/ce7e1864de80d5695ddc064fb0a785125898af22
+diff --git a/clang/unittests/BUILD.bazel b/clang/unittests/BUILD.bazel
+--- a/clang/unittests/BUILD.bazel
++++ b/clang/unittests/BUILD.bazel
+@@ -186,6 +186,7 @@ cc_library(
+ 
+ cc_test(
+     name = "analysis_flow_sensitive_tests",
++    size = "medium",
+     srcs = glob(
+         [
+             "Analysis/FlowSensitive/*.cpp",
+@@ -193,6 +194,7 @@ cc_test(
+         ],
+         allow_empty = False,
+     ),
++    shard_count = 20,
+     deps = [
+         "//clang:analysis",
+         "//clang:ast",

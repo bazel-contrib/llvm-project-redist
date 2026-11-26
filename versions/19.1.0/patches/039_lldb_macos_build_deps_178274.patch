@@ -1,0 +1,33 @@
+# Local adaptation (this release's HostMacOSXObjCXX still depends on
+# `:Utility` rather than `:UtilityHeaders`, otherwise identical) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/94f8a32f3d8fc62a84200210179f04fd41774f66
+#
+# "[bazel] Fix macOS lldb BUILD" (#178274): the macOS-only lldb targets are
+# not covered by upstream CI, and under layering_check
+# PluginSymbolLocatorDebugSymbols fails with "does not depend on a module
+# exporting 'lldb/lldb-private.h'" (seen on the macOS arm64 task); the
+# objc_library is missing its DebugInfoDWARF dep the same way.
+diff --git a/lldb/BUILD.bazel b/lldb/BUILD.bazel
+index 3a0726275..4cf803485 100644
+--- a/lldb/BUILD.bazel
++++ b/lldb/BUILD.bazel
+@@ -515,6 +515,7 @@ objc_library(
+         ":HostMacOSXHeaders",
+         ":HostMacOSXPrivateHeaders",
+         ":Utility",
++        "//llvm:DebugInfoDWARF",
+         "//llvm:Support",
+         "//llvm:TargetParser",
+     ],
+diff --git a/lldb/source/Plugins/BUILD.bazel b/lldb/source/Plugins/BUILD.bazel
+index a34e1321a..bb6328edb 100644
+--- a/lldb/source/Plugins/BUILD.bazel
++++ b/lldb/source/Plugins/BUILD.bazel
+@@ -1760,6 +1760,7 @@ cc_library(
+     deps = [
+         ":PluginObjectFileWasm",
+         "//lldb:Core",
++        "//lldb:Headers",
+         "//lldb:Host",
+         "//lldb:HostMacOSXPrivateHeaders",
+         "//lldb:Symbol",

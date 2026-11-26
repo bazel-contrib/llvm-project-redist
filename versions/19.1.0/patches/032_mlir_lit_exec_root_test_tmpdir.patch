@@ -1,0 +1,34 @@
+# Proposed upstream as a PR from the bazel-mlir-lit-exec-root-tmpdir branch
+# (same change on main's mlir/test/BUILD.bazel, which also uses
+# TEST_UNDECLARED_OUTPUTS_DIR here).
+#
+# On the bazelci Windows runners every lit test under
+# mlir/test/Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation
+# fails while Dialect/SCF/buffer-deallocation.mlir, which runs the same pass,
+# passes: lit's cwd for RUN lines is <exec root>/<test dir>, the exec root is
+# under TEST_UNDECLARED_OUTPUTS_DIR which already holds the test's full path,
+# and for that directory the result is 277..297 characters against the
+# 258-character cwd limit of CreateProcessW (longest passing test: 250).
+diff --git a/mlir/test/BUILD.bazel b/mlir/test/BUILD.bazel
+index 74ad4a7ba..9363055db 100644
+--- a/mlir/test/BUILD.bazel
++++ b/mlir/test/BUILD.bazel
+@@ -30,9 +30,15 @@ lit_expand_template(
+     substitutions = {
+         # MLIR_BINARY_DIR is a string-literal substitution: the entire
+         # `"@MLIR_BINARY_DIR@"` (including its surrounding quotes) is replaced
+-        # with a Python expression that reads the per-test undeclared outputs
+-        # directory at lit-load time.
+-        "\"@MLIR_BINARY_DIR@\"": "os.environ[\"TEST_UNDECLARED_OUTPUTS_DIR\"]",
++        # with a Python expression evaluated at lit-load time. lit runs every
++        # RUN line with cwd = <exec root>/<test dir>, and the exec root derives
++        # from MLIR_BINARY_DIR. TEST_UNDECLARED_OUTPUTS_DIR already contains the
++        # test's full path, so the test directory ends up in the cwd twice; for
++        # Dialect/Bufferization/Transforms/OwnershipBasedBufferDeallocation that
++        # exceeds the 258-character limit CreateProcessW puts on a working
++        # directory and every test there fails on Windows. TEST_TMPDIR is a
++        # short per-test directory.
++        "\"@MLIR_BINARY_DIR@\"": "os.environ[\"TEST_TMPDIR\"]",
+         "@ENABLE_ASSERTIONS@": "1",
+         "@ENABLE_SHARED@": "1",
+         "@LLVM_BUILD_EXAMPLES@": "0",

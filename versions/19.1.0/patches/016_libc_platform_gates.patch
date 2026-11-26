@@ -1,0 +1,134 @@
+# Two rule-level platform gates for libc, applied together in _libc_library
+# and libc_test (the MPFR wrapper picks them up in the third-party deps patch).
+#
+# Windows: no upstream equivalent, by design. This release has no
+# src/__support/OSUtil/windows/ at all; the Windows time API lands on top of it
+# in e6cf5d2863b7 (#117775, 2024-12), and upstream has been making libc targets
+# buildable on Windows via Bazel since 4bcf1e61eb84 (#131172, 2025-03) and
+# 1d81dfaa8f1c (#150704). A rule-level Windows gate would be rejected upstream
+# and must not be carried into a version that has that backend (20.1.0 does):
+# there, a libc failure on Windows is a bug to report, and the per-target
+# `@platforms//os:windows` selects are the fix.
+#
+# macOS x86_64: proposed upstream as a PR from the bazel-libc-macos-x86_64
+# branch (the same `macos_x86_64` config_setting and
+# LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 gate). The Darwin backend is arm64-only:
+# src/__support/OSUtil/darwin/syscall.h #errors "Unsupported architecture",
+# which takes down __support_osutil_io and with it the unit test logger,
+# printf_converter and every libc test on an Intel Mac.
+diff --git a/libc/BUILD.bazel b/libc/BUILD.bazel
+--- a/libc/BUILD.bazel
++++ b/libc/BUILD.bazel
+@@ -54,6 +54,15 @@
+ 
+ ################################## Base Config #################################
+ 
++# macOS on x86_64: see LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 in libc_build_rules.bzl.
++config_setting(
++    name = "macos_x86_64",
++    constraint_values = [
++        "@platforms//cpu:x86_64",
++        "@platforms//os:macos",
++    ],
++)
++
+ cc_library(
+     name = "__support_macros_config",
+     hdrs = ["src/__support/macros/config.h"],
+diff --git a/libc/libc_build_rules.bzl b/libc/libc_build_rules.bzl
+--- a/libc/libc_build_rules.bzl
++++ b/libc/libc_build_rules.bzl
+@@ -23,7 +23,36 @@
+         "-DLIBC_NAMESPACE=" + LIBC_NAMESPACE,
+     ]
+ 
+-def _libc_library(name, hidden, copts = [], deps = [], local_defines = [], **kwargs):
++# LLVM libc has no Windows support to build in this release. The overlay
++# selects between `@platforms//os:linux` and `@platforms//os:macos`, some
++# arms without a default, and src/__support/OSUtil and src/__support/threads
++# carry a `linux/` directory and no `windows/` one, so on a Windows host some
++# targets fail to configure and the rest fail to compile (SIGRTMIN, Mutex,
++# aligned_alloc); under cl.exe src/__support/macros/optimization.h #errors
++# "Unhandled compiler" first. Gate every libc target and test on the OS so
++# `bazel test //...` on a Windows host skips them instead of stopping in
++# libc. Not needed once the release carries libc's Windows backend
++# (src/__support/OSUtil/windows/, upstream e6cf5d2863b7 and later).
++LIBC_INCOMPATIBLE_WITH_WINDOWS = select({
++    "@platforms//os:windows": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
++# LLVM libc's Darwin backend is arm64-only. src/__support/OSUtil/darwin/
++# syscall.h #errors "Unsupported architecture" unless LIBC_TARGET_ARCH_IS_ANY_ARM,
++# and nothing under src/__support/OSUtil/darwin/ has an x86_64 variant, so on
++# an Intel Mac every target that reaches __support_osutil_io (the unit test
++# logger, printf_converter, ...) fails to compile. Upstream only builds libc on
++# macOS arm64 and has no per-CPU gate for this, so gate it here the same way as
++# Windows. This also keeps @mpfr and @gmp out of the macOS x86_64 build:
++# gmp 6.3.0.bcr.4 is only tested on macos_arm64 in the BCR and its x86_64
++# mpn assembly emits GNU-style `.align 32` that the Mach-O assembler rejects.
++LIBC_INCOMPATIBLE_WITH_MACOS_X86_64 = select({
++    "//libc:macos_x86_64": ["@platforms//:incompatible"],
++    "//conditions:default": [],
++})
++
++def _libc_library(name, hidden, copts = [], deps = [], local_defines = [], target_compatible_with = None, **kwargs):
+     """Internal macro to serve as a base for all other libc library rules.
+ 
+     Args:
+@@ -32,8 +61,10 @@
+       deps: The list of target dependencies if any.
+       local_defines: The list of target local_defines if any.
+       hidden: Whether the symbols should be explicitly hidden or not.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: All other attributes relevant for the cc_library rule.
+     """
++    target_compatible_with = target_compatible_with or []
+ 
+     # We want all libc sources to be compiled with "hidden" visibility.
+     # The public symbols will be given "default" visibility explicitly.
+@@ -46,6 +77,7 @@
+         local_defines = local_defines + LIBC_CONFIGURE_OPTIONS,
+         deps = deps,
+         linkstatic = 1,
++        target_compatible_with = target_compatible_with + LIBC_INCOMPATIBLE_WITH_WINDOWS + LIBC_INCOMPATIBLE_WITH_MACOS_X86_64,
+         **kwargs
+     )
+ 
+diff --git a/libc/test/libc_test_rules.bzl b/libc/test/libc_test_rules.bzl
+--- a/libc/test/libc_test_rules.bzl
++++ b/libc/test/libc_test_rules.bzl
+@@ -13,10 +13,16 @@
+ """
+ 
+ load("@rules_cc//cc:cc_test.bzl", "cc_test")
+-load("//libc:libc_build_rules.bzl", "libc_common_copts", "libc_internal_target")
++load(
++    "//libc:libc_build_rules.bzl",
++    "LIBC_INCOMPATIBLE_WITH_MACOS_X86_64",
++    "LIBC_INCOMPATIBLE_WITH_WINDOWS",
++    "libc_common_copts",
++    "libc_internal_target",
++)
+ load("//libc:libc_configure_options.bzl", "LIBC_CONFIGURE_OPTIONS")
+ 
+-def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], local_defines = [], **kwargs):
++def libc_test(name, srcs, libc_function_deps = [], copts = [], deps = [], local_defines = [], target_compatible_with = None, **kwargs):
+     """Add target for a libc test.
+ 
+     Args:
+@@ -26,6 +32,7 @@
+       copts: The list of options to add to the C++ compilation command.
+       deps: The list of other libraries to be linked in to the test target.
+       local_defines: The list of target local_defines if any.
++      target_compatible_with: Extra constraints, appended to the Windows gate.
+       **kwargs: Attributes relevant for a libc_test. For example, name, srcs.
+     """
+     all_function_deps = libc_function_deps + ["//libc:errno"]
+@@ -40,5 +47,6 @@
+         features = ["-link_llvmlibc"],  # Do not link libllvmlibc.a
+         copts = copts + libc_common_copts(),
+         linkstatic = 1,
++        target_compatible_with = (target_compatible_with or []) + LIBC_INCOMPATIBLE_WITH_WINDOWS + LIBC_INCOMPATIBLE_WITH_MACOS_X86_64,
+         **kwargs
+     )

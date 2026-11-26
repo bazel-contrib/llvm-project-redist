@@ -35,6 +35,15 @@ matrix:
   bazel_clang_cl:
     - 8.x
     - 9.x
+  # Bazel 7 resolves @bazel_tools' built-in macOS C++ toolchain ahead of the
+  # apple_support one that lldb's objc_library targets need unless the root
+  # module depends on apple_support itself. Rather than force a toolchain
+  # registration on consumers, the macOS tasks skip 7.x; Bazel 8+ takes the
+  # macOS toolchain from apple_support via rules_cc. Only the macOS tasks read
+  # this axis.
+  bazel_macos:
+    - 8.x
+    - 9.x
 tasks:
   run_tests:
     name: bazel test //... (linux, clang)
@@ -90,7 +99,7 @@ tasks:
   run_tests_macos:
     name: bazel test //... (macOS x86_64, clang)
     platform: macos
-    bazel: ${{ bazel }}
+    bazel: ${{ bazel_macos }}
     build_flags:
       - --config=generic_clang
       - --build_tag_filters=-nobuildkite
@@ -111,7 +120,7 @@ tasks:
   run_tests_macos_arm64:
     name: bazel test //... (macOS arm64, clang)
     platform: macos_arm64
-    bazel: ${{ bazel }}
+    bazel: ${{ bazel_macos }}
     build_flags:
       - --config=generic_clang
       - --build_tag_filters=-nobuildkite

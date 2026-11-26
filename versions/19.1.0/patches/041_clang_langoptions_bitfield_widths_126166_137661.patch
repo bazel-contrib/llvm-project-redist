@@ -1,0 +1,52 @@
+# Local adaptation (the width bumps only; the set##Name asserts and the
+# temporary pragma suppressions this release never had are left out) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/b88b6a2b633a942d454205f336703cdc62074686
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/55e39100dae2a131c7cbcdbbe628c0b82f8c12ca
+#
+# "[clang] Assert the enum FPOpts and LangOpts fit into the storage"
+# (#126166) widened ComplexRange to 3 bits (ComplexRangeKind has five
+# enumerators) and "[clang] Remove FEM_Indeterminable" (#137661) dropped the
+# unused -1 enumerator so the unsigned 2-bit FPEvalMethod field can hold
+# every value. clang 21 diagnoses both under
+# -Wpreferred-type-bitfield-enum-conversion, which the clang-cl config's
+# -Werror turns into an error in every TU that includes LangOptions.h.
+diff --git a/clang/include/clang/Basic/FPOptions.def b/clang/include/clang/Basic/FPOptions.def
+index 79f04c89c..90428c3c7 100644
+--- a/clang/include/clang/Basic/FPOptions.def
++++ b/clang/include/clang/Basic/FPOptions.def
+@@ -28,5 +28,5 @@ OPTION(FPEvalMethod, LangOptions::FPEvalMethodKind, 2, AllowApproxFunc)
+ OPTION(Float16ExcessPrecision, LangOptions::ExcessPrecisionKind, 2, FPEvalMethod)
+ OPTION(BFloat16ExcessPrecision, LangOptions::ExcessPrecisionKind, 2, Float16ExcessPrecision)
+ OPTION(MathErrno, bool, 1, BFloat16ExcessPrecision)
+-OPTION(ComplexRange, LangOptions::ComplexRangeKind, 2, MathErrno)
++OPTION(ComplexRange, LangOptions::ComplexRangeKind, 3, MathErrno)
+ #undef OPTION
+diff --git a/clang/include/clang/Basic/LangOptions.def b/clang/include/clang/Basic/LangOptions.def
+index 834a6f6cd..fd981bd46 100644
+--- a/clang/include/clang/Basic/LangOptions.def
++++ b/clang/include/clang/Basic/LangOptions.def
+@@ -235,7 +235,7 @@ BENIGN_LANGOPT(NoSignedZero      , 1, 0, "Permit Floating Point optimization wit
+ BENIGN_LANGOPT(AllowRecip        , 1, 0, "Permit Floating Point reciprocal")
+ BENIGN_LANGOPT(ApproxFunc        , 1, 0, "Permit Floating Point approximation")
+ 
+-ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 2, CX_None, "Enable use of range reduction for complex arithmetics.")
++ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 3, CX_None, "Enable use of range reduction for complex arithmetics.")
+ 
+ BENIGN_LANGOPT(ObjCGCBitmapPrint , 1, 0, "printing of GC's bitmap layout for __weak/__strong ivars")
+ 
+diff --git a/clang/include/clang/Basic/LangOptions.h b/clang/include/clang/Basic/LangOptions.h
+index 91f1c2f2e..7bd4989fc 100644
+--- a/clang/include/clang/Basic/LangOptions.h
++++ b/clang/include/clang/Basic/LangOptions.h
+@@ -285,10 +285,7 @@ public:
+   };
+ 
+   /// Possible float expression evaluation method choices.
+-  enum FPEvalMethodKind {
+-    /// The evaluation method cannot be determined or is inconsistent for this
+-    /// target.
+-    FEM_Indeterminable = -1,
++  enum FPEvalMethodKind : unsigned {
+     /// Use the declared type for fp arithmetic.
+     FEM_Source = 0,
+     /// Use the type double for fp arithmetic.

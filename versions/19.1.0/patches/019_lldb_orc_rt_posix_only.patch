@@ -1,0 +1,60 @@
+# No upstream equivalent, by design: lldb and compiler-rt's ORC runtime have
+# Linux and macOS backends only in this release, and their srcs/substitutions
+# selects have no arm for anything else, so on a Windows host analysis fails
+# with "configurable attribute ... doesn't match this configuration" instead
+# of skipping. Declare the supported OSes on the roots (lldb:Host,
+# lldb:ConfigHeader, compiler-rt:orc_rt) so everything downstream is skipped
+# as incompatible. Upstream added Windows support to the lldb overlay in 2026
+# (91e344bd26bf, 2bc3ca68d169, e74432084f39); a release carrying that work must
+# not carry this gate.
+diff --git a/compiler-rt/BUILD.bazel b/compiler-rt/BUILD.bazel
+--- a/compiler-rt/BUILD.bazel
++++ b/compiler-rt/BUILD.bazel
+@@ -106,6 +106,14 @@ cc_library(
+     hdrs = glob(["include/orc_rt/*.h"]),
+     includes = ["include"],
+     linkstatic = True,
++    # Only Linux and macOS have a platform runtime in this release; the selects
++    # below have no arm for anything else, so declare it rather than fail
++    # analysis on Windows.
++    target_compatible_with = select({
++        "@platforms//os:linux": [],
++        "@platforms//os:macos": [],
++        "//conditions:default": ["@platforms//:incompatible"],
++    }),
+     deps = [
+         ":orc_rt_common_headers",
+     ],
+diff --git a/lldb/BUILD.bazel b/lldb/BUILD.bazel
+--- a/lldb/BUILD.bazel
++++ b/lldb/BUILD.bazel
+@@ -168,6 +168,14 @@ expand_template(
+             "#cmakedefine01 LLDB_ENABLE_LIBEDIT": "#define LLDB_ENABLE_LIBEDIT 0",
+         },
+     }),
++    # Only Linux and macOS have a Host backend in this release; the selects
++    # below have no arm for anything else, so declare it rather than fail
++    # analysis on Windows. Everything in lldb includes this header.
++    target_compatible_with = select({
++        "@platforms//os:linux": [],
++        "@platforms//os:macos": [],
++        "//conditions:default": ["@platforms//:incompatible"],
++    }),
+     template = "include/lldb/Host/Config.h.cmake",
+ )
+ 
+@@ -566,6 +574,14 @@ cc_library(
+         "//conditions:default": [],
+     }),
+     strip_include_prefix = "include",
++    # Only Linux and macOS have a Host backend in this release; the selects
++    # below have no arm for anything else, so declare it rather than fail
++    # analysis on Windows. Everything in lldb depends on this target.
++    target_compatible_with = select({
++        "@platforms//os:linux": [],
++        "@platforms//os:macos": [],
++        "//conditions:default": ["@platforms//:incompatible"],
++    }),
+     deps = [
+         ":Headers",
+         ":Utility",
