@@ -1,0 +1,18 @@
+# Subset (the MPFRWrapper hunk) of:
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/50cc07f1bc3e4527a51b0aed6cf0479e87d61f37
+#
+# MPFRUtils.cpp includes "test/UnitTest/Test.h", which layering_check
+# requires as a direct dep. The commit's other hunks (limits macros, cpp_limits
+# deps) follow 72ce6294, which is not in 18.1.0, so they do not apply here.
+diff --git a/libc/utils/MPFRWrapper/BUILD.bazel b/libc/utils/MPFRWrapper/BUILD.bazel
+index a78bca7..5f404cb 100644
+--- a/libc/utils/MPFRWrapper/BUILD.bazel
++++ b/libc/utils/MPFRWrapper/BUILD.bazel
+@@ -53,6 +53,7 @@ libc_support_library(
+         "//libc:__support_fputil_fp_bits",
+         "//libc:__support_fputil_fpbits_str",
+         "//libc/test/UnitTest:fp_test_helpers",
++        "//libc/test/UnitTest:LibcUnitTest",
+         "//libc/utils/MPFRWrapper:mpfr_impl",
+     ],
+ )
