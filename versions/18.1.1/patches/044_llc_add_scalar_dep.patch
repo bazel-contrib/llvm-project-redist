@@ -1,0 +1,13 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/4079aab8d80233586a9cd3f7be27bece4c21ea16
+diff --git a/llvm/BUILD.bazel b/llvm/BUILD.bazel
+index 4446f5b..6d61e92 100644
+--- a/llvm/BUILD.bazel
++++ b/llvm/BUILD.bazel
+@@ -3276,6 +3276,7 @@ cc_binary(
+         ":MC",
+         ":Passes",
+         ":Remarks",
++        ":Scalar",
+         ":Support",
+         ":Target",
+         ":TargetParser",

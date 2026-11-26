@@ -7,6 +7,7 @@
 # after a patch changes the .bazelrc, or run with `--check` to see the drift.
 matrix:
   platform:
+    - debian12
     - ubuntu2404
   bazel:
     - 7.x
@@ -83,82 +84,6 @@ tasks:
       - --incompatible_autoload_externally=
     test_targets:
       - '@llvm-project//...'
-  run_tests_debian10:
-    name: bazel test //... (debian10, clang)
-    platform: debian10
-    bazel: ${{ bazel }}
-    # generic_clang links with -fuse-ld=lld ("assume that anybody using clang
-    # also has lld available"); bazelci's Linux images do not.
-    shell_commands:
-      - sudo apt-get update
-      - sudo apt-get install -y --no-install-recommends lld
-    build_flags:
-      # .bazelrc: unconditional flags
-      - --experimental_guard_against_concurrent_changes
-      - --nolegacy_external_runfiles
-      - --force_pic
-      - --dynamic_mode=off
-      - --strip=never
-      - --features=layering_check
-      - --incompatible_no_implicit_file_export
-      # .bazelrc: --config=generic_clang
-      - --repo_env=CC=clang
-      - --cxxopt=-std=c++17
-      - --host_cxxopt=-std=c++17
-      - --copt=-Wall
-      - --host_copt=-Wall
-      - --cxxopt=-Wno-range-loop-analysis
-      - --host_cxxopt=-Wno-range-loop-analysis
-      - --copt=-Wno-deprecated
-      - --host_copt=-Wno-deprecated
-      - --linkopt=-fuse-ld=lld
-      - --host_linkopt=-fuse-ld=lld
-      - --build_tag_filters=-nobuildkite
-      - --keep_going
-      - --incompatible_disallow_empty_glob=true
-      - --incompatible_autoload_externally=
-    build_targets:
-      - '@llvm-project//...'
-      # debian10 ships gcc 8.3 and clang 7. libc documents Clang >= 11 and
-      # GCC >= 12.2 (libc/docs/compiler_support.rst) and in this release every
-      # libc target and test is compiled with -ftrivial-auto-var-init=pattern,
-      # which neither compiler accepts, so nothing under //libc builds here.
-      # Build and test everything else.
-      - '-@llvm-project//libc/...'
-    test_flags:
-      # .bazelrc: unconditional flags
-      - --experimental_guard_against_concurrent_changes
-      - --nolegacy_external_runfiles
-      - --force_pic
-      - --dynamic_mode=off
-      - --strip=never
-      - --features=layering_check
-      - --incompatible_no_implicit_file_export
-      # .bazelrc: --config=generic_clang
-      - --repo_env=CC=clang
-      - --cxxopt=-std=c++17
-      - --host_cxxopt=-std=c++17
-      - --copt=-Wall
-      - --host_copt=-Wall
-      - --cxxopt=-Wno-range-loop-analysis
-      - --host_cxxopt=-Wno-range-loop-analysis
-      - --copt=-Wno-deprecated
-      - --host_copt=-Wno-deprecated
-      - --linkopt=-fuse-ld=lld
-      - --host_linkopt=-fuse-ld=lld
-      - --build_tag_filters=-nobuildkite
-      - --test_tag_filters=-nobuildkite
-      - --keep_going
-      - --incompatible_disallow_empty_glob=true
-      - --incompatible_autoload_externally=
-    test_targets:
-      - '@llvm-project//...'
-      # debian10 ships gcc 8.3 and clang 7. libc documents Clang >= 11 and
-      # GCC >= 12.2 (libc/docs/compiler_support.rst) and in this release every
-      # libc target and test is compiled with -ftrivial-auto-var-init=pattern,
-      # which neither compiler accepts, so nothing under //libc builds here.
-      # Build and test everything else.
-      - '-@llvm-project//libc/...'
   run_tests_gcc:
     name: bazel test //... (linux, gcc)
     platform: ${{ platform }}
@@ -197,13 +122,21 @@ tasks:
       # GCC rejects the [[gnu::alias]] in LLVM_LIBC_FUNCTION when glibc also
       # defines the function as an extern inline under optimization (atof in
       # stdlib.h, vprintf in bits/stdio.h, feraiseexcept in bits/fenvinline.h
-      # on debian10's glibc 2.28)
-      # and the libc rules force -O3. Overlay-mode GCC builds are a known gap
-      # upstream (llvm/llvm-project#60481). Only the public-packaging variants
-      # alias; the tests link the .__internal__ ones and are unaffected.
+      # on older glibc) and the libc rules force -O3. Overlay-mode GCC builds
+      # are a known gap upstream (llvm/llvm-project#60481). Only the
+      # public-packaging variants alias; the tests link the .__internal__ ones
+      # and are unaffected.
       - '-@llvm-project//libc:atof'
       - '-@llvm-project//libc:feraiseexcept'
       - '-@llvm-project//libc:vprintf'
+      # GCC only gained _Float128 in C++ mode with 13.1, and this release's libc
+      # takes the __float128 extension from clang alone (src/__support/macros/
+      # properties/float.h), so on debian12's gcc 12.2 `float128` is undefined
+      # and copysignf128 cannot be declared. 19.x detects __SIZEOF_FLOAT128__
+      # and is unaffected; CMake gates the entrypoint on the same check, Bazel
+      # has no gate. Both variants are top-level targets.
+      - '-@llvm-project//libc:copysignf128'
+      - '-@llvm-project//libc:copysignf128.__internal__'
     test_flags:
       # .bazelrc: unconditional flags
       - --experimental_guard_against_concurrent_changes
@@ -236,85 +169,6 @@ tasks:
       - --incompatible_autoload_externally=
     test_targets:
       - '@llvm-project//...'
-  run_tests_gcc_debian10:
-    name: bazel test //... (debian10, gcc)
-    platform: debian10
-    bazel: ${{ bazel }}
-    build_flags:
-      # .bazelrc: unconditional flags
-      - --experimental_guard_against_concurrent_changes
-      - --nolegacy_external_runfiles
-      - --force_pic
-      - --dynamic_mode=off
-      - --strip=never
-      - --features=layering_check
-      - --incompatible_no_implicit_file_export
-      # .bazelrc: --config=generic_gcc
-      - --repo_env=CC=gcc
-      - --cxxopt=-std=c++17
-      - --host_cxxopt=-std=c++17
-      - --copt=-Wno-deprecated
-      - --host_copt=-Wno-deprecated
-      - --copt=-Wno-unused-parameter
-      - --host_copt=-Wno-unused-parameter
-      - --copt=-Wno-comment
-      - --host_copt=-Wno-comment
-      - --cxxopt=-Wno-class-memaccess
-      - --host_cxxopt=-Wno-class-memaccess
-      - --copt=-Wno-maybe-uninitialized
-      - --host_copt=-Wno-maybe-uninitialized
-      - --copt=-Wno-misleading-indentation
-      - --host_copt=-Wno-misleading-indentation
-      - --build_tag_filters=-nobuildkite
-      - --keep_going
-      - --incompatible_disallow_empty_glob=true
-      - --incompatible_autoload_externally=
-    build_targets:
-      - '@llvm-project//...'
-      # debian10 ships gcc 8.3 and clang 7. libc documents Clang >= 11 and
-      # GCC >= 12.2 (libc/docs/compiler_support.rst) and in this release every
-      # libc target and test is compiled with -ftrivial-auto-var-init=pattern,
-      # which neither compiler accepts, so nothing under //libc builds here.
-      # Build and test everything else.
-      - '-@llvm-project//libc/...'
-    test_flags:
-      # .bazelrc: unconditional flags
-      - --experimental_guard_against_concurrent_changes
-      - --nolegacy_external_runfiles
-      - --force_pic
-      - --dynamic_mode=off
-      - --strip=never
-      - --features=layering_check
-      - --incompatible_no_implicit_file_export
-      # .bazelrc: --config=generic_gcc
-      - --repo_env=CC=gcc
-      - --cxxopt=-std=c++17
-      - --host_cxxopt=-std=c++17
-      - --copt=-Wno-deprecated
-      - --host_copt=-Wno-deprecated
-      - --copt=-Wno-unused-parameter
-      - --host_copt=-Wno-unused-parameter
-      - --copt=-Wno-comment
-      - --host_copt=-Wno-comment
-      - --cxxopt=-Wno-class-memaccess
-      - --host_cxxopt=-Wno-class-memaccess
-      - --copt=-Wno-maybe-uninitialized
-      - --host_copt=-Wno-maybe-uninitialized
-      - --copt=-Wno-misleading-indentation
-      - --host_copt=-Wno-misleading-indentation
-      - --build_tag_filters=-nobuildkite
-      - --test_tag_filters=-nobuildkite
-      - --keep_going
-      - --incompatible_disallow_empty_glob=true
-      - --incompatible_autoload_externally=
-    test_targets:
-      - '@llvm-project//...'
-      # debian10 ships gcc 8.3 and clang 7. libc documents Clang >= 11 and
-      # GCC >= 12.2 (libc/docs/compiler_support.rst) and in this release every
-      # libc target and test is compiled with -ftrivial-auto-var-init=pattern,
-      # which neither compiler accepts, so nothing under //libc builds here.
-      # Build and test everything else.
-      - '-@llvm-project//libc/...'
   # generic_clang's -fuse-ld=lld is unsatisfied on the bazelci macOS runners
   # (clang looks for ld64.lld, which homebrew's keg-only lld does not put on
   # PATH). Upstream runs no Bazel CI on macOS, so the flag is untested there

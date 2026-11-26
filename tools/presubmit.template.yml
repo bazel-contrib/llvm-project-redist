@@ -23,7 +23,7 @@
 # bolt, ...). build_flags mirrors test_flags minus the test-only filters.
 matrix:
   platform:
-    - debian10
+    - debian12
     - ubuntu2404
   bazel:
     - 7.x

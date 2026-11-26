@@ -1,0 +1,36 @@
+# Upstream-Commit: https://github.com/llvm/llvm-project/commit/59085e9c3f522b59e512f1651058a9f98c739088
+diff --git a/lld/ELF/Arch/ARM.cpp b/lld/ELF/Arch/ARM.cpp
+index 687f94990..20e6c93fc 100644
+--- a/lld/ELF/Arch/ARM.cpp
++++ b/lld/ELF/Arch/ARM.cpp
+@@ -1118,7 +1118,7 @@ template <class ELFT> void ObjFile<ELFT>::importCmseSymbols() {
+     Defined *sym = reinterpret_cast<Defined *>(make<SymbolUnion>());
+ 
+     // Initialize symbol fields.
+-    memset(sym, 0, sizeof(Symbol));
++    memset(static_cast<void *>(sym), 0, sizeof(Symbol));
+     sym->setName(CHECK(eSyms[i].getName(stringTable), this));
+     sym->value = eSym.st_value;
+     sym->size = eSym.st_size;
+diff --git a/lld/ELF/SymbolTable.cpp b/lld/ELF/SymbolTable.cpp
+index b3d97e4de..d54862eba 100644
+--- a/lld/ELF/SymbolTable.cpp
++++ b/lld/ELF/SymbolTable.cpp
+@@ -58,7 +58,7 @@ void SymbolTable::wrap(Symbol *sym, Symbol *real, Symbol *wrap) {
+   // alias for sym, but that could degrade the user experience of some tools
+   // that can print out only one symbol for each location: sym is a preferred
+   // name than real, but they might print out real instead.
+-  memcpy(real, sym, sizeof(SymbolUnion));
++  memcpy(static_cast<void *>(real), sym, sizeof(SymbolUnion));
+   real->isUsedInRegularObj = false;
+ }
+ 
+@@ -89,7 +89,7 @@ Symbol *SymbolTable::insert(StringRef name) {
+   symVector.push_back(sym);
+ 
+   // *sym was not initialized by a constructor. Initialize all Symbol fields.
+-  memset(sym, 0, sizeof(Symbol));
++  memset(static_cast<void *>(sym), 0, sizeof(Symbol));
+   sym->setName(name);
+   sym->partition = 1;
+   sym->versionId = VER_NDX_GLOBAL;
